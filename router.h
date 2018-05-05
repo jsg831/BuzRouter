@@ -2,6 +2,9 @@
 #define _ROUTER_H
 
 #include <cstdint>
+#include <vector>
+#include "bus.h"
+#include "grid.h"
 #include "utils.h"
 
 class Router
@@ -15,6 +18,12 @@ public:
   uint32_t epsilon;
 
   Rectangle design_boundary;
+
+  Grid grid;
+  std::vector<Track> tracks;
+  std::vector<Rectangle> obstacles;
+
+  std::vector<Bus> buses;
 };
 
 #endif
