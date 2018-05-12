@@ -14,6 +14,7 @@ struct Node
 {
 public:
   uint8_t l;
+  uint8_t sl;
   uint32_t nx;
   uint32_t ny;
 };
@@ -22,6 +23,7 @@ struct Rectangle
 {
 public:
   uint8_t l;
+  uint8_t sl;
   Point lower;
   Point upper;
 };
