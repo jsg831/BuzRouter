@@ -30,8 +30,11 @@ public:
 
 struct Track
 {
+public:
   uint32_t width;
   Rectangle line;
+
+  bool direction( void ) const;
 };
 
 #endif

@@ -24,6 +24,10 @@ public:
   std::vector<Rectangle> obstacles;
 
   std::vector<Bus> buses;
+
+  /** Initialization **/
+  void initialize( void );
+private:
 };
 
 #endif
