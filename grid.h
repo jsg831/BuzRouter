@@ -13,8 +13,8 @@ struct GridNode
 public:
   /* Variables */
   uint32_t cost;
-  uint16_t width_cur;
-  uint16_t width_low;
+  uint16_t width_cur = 0;
+  uint16_t width_low = 0;
 
   uint8_t routable_cur;
   uint8_t routable_low;
@@ -38,8 +38,14 @@ public:
   std::vector<uint32_t> sltra_axis;
   // Sublayer-track index to layer-track/intersection index
   std::vector<uint32_t> sltra_ltra;
-  // Sublayer-track mask of layer-track indices
-  std::vector<bool> sltra_ltra_mask;
+  // Sublayer-track index to upper-layer-intersection index
+  std::vector<uint32_t> sltra_ulint;
+  // Sublayer-track index to lower-layer-intersection index
+  std::vector<uint32_t> sltra_llint;
+  // Upper-layer-intersection index to sublayer-track index
+  std::vector<uint32_t> ulint_sltra;
+  // Lower-layer-intersection index to sublayer-track index
+  std::vector<uint32_t> llint_sltra;
 };
 
 struct Layer
@@ -52,6 +58,7 @@ public:
   /** Index Conversion **/
   // Layer-track index to physical coordinate
   std::vector<uint32_t> ltra_coor;
+  std::vector<uint32_t> lint_coor;
   // Layer-track/intersection index to axis index
   std::vector<uint32_t> ltra_axis;
   std::vector<uint32_t> lint_axis;
@@ -71,9 +78,17 @@ public:
   /** Initialization **/
   void make_grid( const std::vector<Track>& tracks );
 private:
+  /* Functions */
+  /** Utilities **/
   void remove_duplicates( std::vector<uint32_t>& vec );
   void convert_index( std::vector<uint32_t>& conv_vec,
     const std::vector<uint32_t>& vec, const std::vector<uint32_t>& sub_vec );
+  void convert_subindex( std::vector<uint32_t>& conv_vec,
+    const std::vector<uint32_t>& vec, const std::vector<uint32_t>& sub_vec );
+  uint32_t find_lower_bound( const uint32_t& val,
+    const std::vector<uint32_t>& vec );
+  uint32_t find_upper_bound( const uint32_t& val,
+    const std::vector<uint32_t>& vec );
 };
 
 #endif

@@ -15,8 +15,14 @@ struct Node
 public:
   uint8_t l;
   uint8_t sl;
-  uint32_t nx;
-  uint32_t ny;
+  union {
+    uint32_t x;
+    uint32_t t; // track index
+  };
+  union {
+    uint32_t y;
+    uint32_t i; // intersection index
+  };
 };
 
 struct Rectangle
