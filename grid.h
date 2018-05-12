@@ -12,16 +12,25 @@ struct GridNode
 public:
   uint32_t cost;
   uint32_t width;
+
+  uint8_t routable_cur;
+  uint8_t routable_low;
+  uint8_t visited;
 private:
   std::bitset<32> flags;
 };
 
-struct Layer
+struct Sublayer
 {
   std::string name;
-  bool direction; // (horizontal: 0, vertical: 1)
   uint32_t spacing;
   std::vector< std::vector<GridNode> > grid_nodes;
+};
+
+struct Layer
+{
+  bool direction; // (horizontal: 0, vertical: 1)
+  std::vector<Sublayer> sublayers;
 };
 
 struct Grid
