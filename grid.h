@@ -13,8 +13,8 @@ struct GridNode
 public:
   /* Variables */
   uint64_t cost;
-  uint32_t width_cur = 0;
-  uint32_t width_low = UINT32_MAX;
+  uint16_t width_cur = 0;
+  uint16_t width_low = UINT16_MAX;
 
   uint8_t routable_cur;
   uint8_t routable_low;
@@ -98,11 +98,11 @@ private:
     const std::vector<uint32_t>& vec );
   // Resize the widths of tracks inside (lower, upper) and set the widths
   // outside (lower, upper) to zero.
-  void resize_width_in( const uint32_t& coor, uint32_t& width,
+  void resize_width_in( const uint32_t& coor, uint16_t& width,
     const uint32_t& lower, const uint32_t& upper );
   // Resize the widths of tracks outside (lower, upper) and set the widths
   // inside (lower, upper) to zero.
-  void resize_width_out( const uint32_t& coor, uint32_t& width,
+  void resize_width_out( const uint32_t& coor, uint16_t& width,
     const uint32_t& lower, const uint32_t& upper );
 };
 

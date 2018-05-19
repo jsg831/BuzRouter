@@ -232,7 +232,7 @@ uint32_t Grid::find_upper_bound( const uint32_t& val,
   return ( it-vec.begin() );
 }
 
-void Grid::resize_width_in( const uint32_t& coor, uint32_t& width,
+void Grid::resize_width_in( const uint32_t& coor, uint16_t& width,
   const uint32_t& lower, const uint32_t& upper )
 {
   if ( coor <= lower || coor >= upper ) {
@@ -241,10 +241,10 @@ void Grid::resize_width_in( const uint32_t& coor, uint32_t& width,
   }
 
   auto max_width = std::min( coor - lower, upper - coor ) << 1;
-  width = std::min( max_width, width );
+  width = ( max_width < width ) ? max_width : width;
 }
 
-void Grid::resize_width_out( const uint32_t& coor, uint32_t& width,
+void Grid::resize_width_out( const uint32_t& coor, uint16_t& width,
   const uint32_t& lower, const uint32_t& upper )
 {
   if ( coor >= lower && coor <= upper ) {
@@ -253,5 +253,5 @@ void Grid::resize_width_out( const uint32_t& coor, uint32_t& width,
   }
 
   auto max_width = (( coor > upper ) ? (coor - upper) : (lower - coor)) << 1;
-  width = std::min( max_width, width );
+  width = ( max_width < width ) ? max_width : width;
 }

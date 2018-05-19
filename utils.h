@@ -30,7 +30,7 @@ public:
 struct Track
 {
 public:
-  uint32_t width;
+  uint16_t width;
   Rectangle line;
 };
 
