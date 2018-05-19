@@ -1,7 +1,5 @@
 #include "grid.h"
 
-#define OBS_EXT 8
-
 void Grid::make_grid( std::vector<Track>& tracks )
 {
   /* Axes */
@@ -154,23 +152,75 @@ void Grid::add_obstacles( const std::vector<Rectangle>& obstacles )
     auto from_int = find_upper_bound( coor_int_low, layer.lint_coor );
     auto to_int = find_lower_bound( coor_int_upp, layer.lint_coor );
 
+    // Extend the bound by OBS_EXT
+    auto from_tra_ov = safe_sub( from_tra, OBS_EXT );
+    auto to_tra_ov = safe_add( to_tra, OBS_EXT,
+      sublayer.sltra_coor.size() - 1 );
+
     do {
-      // Extend the bound by OBS_EXT
-      auto from_tra_ov = safe_sub( from_tra, OBS_EXT );
-      auto to_tra_ov = safe_add( to_tra, OBS_EXT,
-        sublayer.sltra_coor.size() - 1 );
       for ( uint32_t t = from_tra_ov; t <= to_tra_ov; ++t ) {
-        if ( from_int > to_int )
-          resize_width_out( sublayer.sltra_coor[t],
-            grid_nodes[t][from_int].width_low, coor_tra_low, coor_tra_upp );
-        else
-          resize_width_out( sublayer.sltra_coor[t],
-            grid_nodes[t][from_int].width_cur, coor_tra_low, coor_tra_upp );
+        auto& grid_node = grid_nodes[t][from_int];
+        auto& width = ( from_int > to_int ) ? grid_node.width_low :
+          grid_node.width_cur;
+        if ( t >= from_tra && t <= to_tra ) {
+          width = 0;
+        } else {
+          resize_width_out( sublayer.sltra_coor[t], width, coor_tra_low,
+            coor_tra_upp );
+        }
       }
     } while ( ++from_int <= to_int );
+
+    // Mark lower-/upper-sublayer grid nodes intersected with the obstacle
+    for ( auto sl = 0; sl < layer.sublayers.size(); ++sl ) {
+      if ( sl == obstacle.sl ) continue;
+
+      auto& sublayer = layer.sublayers[sl];
+      auto from_tra = find_upper_bound( coor_tra_low, sublayer.sltra_coor );
+      auto to_tra = find_lower_bound( coor_tra_upp, sublayer.sltra_coor );
+      auto from_int = find_upper_bound( coor_int_low, layer.lint_coor );
+      auto to_int = find_lower_bound( coor_int_upp, layer.lint_coor );
+
+      for ( uint32_t t = from_tra; t <= to_tra; ++t ) {
+        for ( uint32_t i = from_int; i <= to_int; ++i ) {
+          // The obstacle is upper to the lower sublayer and lower to the upper
+          // sublayer.
+          if ( sl < obstacle.sl )
+            sublayer.grid_nodes[t][i].set_bit( GridNode::obs_upp, 1 );
+          else
+            sublayer.grid_nodes[t][i].set_bit( GridNode::obs_low, 1 );
+        }
+      }
+    }
+  }
+
+  //
+}
+/*
+void Grid::setup_nbit_map( const uint32_t& bus_width )
+{
+  // (Current number of routable bits, previous bound)[intersection]
+  std::vector< std::pair<uint8_t, uint32_t> > buffer_cur;
+  std::vector< std::pair<uint8_t, uint32_t> > buffer_low;
+
+  for ( auto& layer : layers ) {
+    for ( auto& sublayer : layer.sublayers ) {
+      auto& grid_nodes = sublayer.grid_nodes;
+      buffer_cur.resize( layer.lint_coor.size() );
+      buffer_low.resize( layer.lint_coor.size() );
+      for ( uint32_t t = 0; t < sublayer.sltra_coor.size(); ++t ) {
+        for ( uint32_t i = 0; i < layer.lint_coor.size(); ++i ) {
+          if ( t == 0 ) {
+            buffer_cur[i] = std::make_pair( 0, 0 );
+            buffer_low[i] = std::make_pair( 0, 0 );
+          }
+          grid_nodes.width_cur
+        }
+      }
+    }
   }
 }
-
+*/
 uint32_t Grid::safe_add( const uint32_t& a, const uint32_t& b,
   const uint32_t& bound )
 {

@@ -8,6 +8,8 @@
 #include <vector>
 #include "utils.h"
 
+#define OBS_EXT 8
+
 struct GridNode
 {
 public:
@@ -19,6 +21,10 @@ public:
   uint8_t routable_cur;
   uint8_t routable_low;
   uint8_t visited;
+
+  enum FlagBit { obs_low, obs_upp };
+  void set_bit( const FlagBit bit, const bool flag );
+  bool get_bit( const FlagBit bit ) const;
 private:
   std::bitset<32> flags;
 };
@@ -87,11 +93,14 @@ private:
     const uint32_t& bound = UINT32_MAX );
   uint32_t safe_sub( const uint32_t& a, const uint32_t& b,
     const uint32_t& bound = 0 );
+  // Remove duplicate values in a vector
   void remove_duplicates( std::vector<uint32_t>& vec );
+  // Convenient index-converting functions
   void convert_index( std::vector<uint32_t>& conv_vec,
     const std::vector<uint32_t>& vec, const std::vector<uint32_t>& sub_vec );
   void convert_subindex( std::vector<uint32_t>& conv_vec,
     const std::vector<uint32_t>& vec, const std::vector<uint32_t>& sub_vec );
+  // Convenient index-searching functions
   uint32_t find_lower_bound( const uint32_t& val,
     const std::vector<uint32_t>& vec );
   uint32_t find_upper_bound( const uint32_t& val,
