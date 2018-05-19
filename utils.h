@@ -6,8 +6,7 @@
 struct Point
 {
 public:
-  uint32_t x;
-  uint32_t y;
+  uint32_t coor[2]; // (x: 0, y: 1)
 };
 
 struct Node
@@ -39,8 +38,6 @@ struct Track
 public:
   uint32_t width;
   Rectangle line;
-
-  bool direction( void ) const;
 };
 
 #endif

@@ -17,8 +17,6 @@ public:
   uint32_t delta;
   uint32_t epsilon;
 
-  Rectangle design_boundary;
-
   Grid grid;
   std::vector<Track> tracks;
   std::vector<Rectangle> obstacles;

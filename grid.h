@@ -52,7 +52,7 @@ struct Layer
 {
 public:
   /* Variables */
-  bool direction; // (horizontal: 0, vertical: 1)
+  bool direction; // (vertical: 0, horizontal: 1)
   std::vector<Sublayer> sublayers;
 
   /** Index Conversion **/
@@ -68,15 +68,16 @@ struct Grid
 {
 public:
   /* Variables */
+  Rectangle boundary;
   std::vector<Layer> layers;
 
   /** Index Conversion **/
   // Axis index to physical coordinates
-  std::vector<uint32_t> axis_coor[2]; // (horizontal(y): 0, vertical(x): 1)
+  std::vector<uint32_t> axis_coor[2]; // (vertical(x): 0, horizontal(y): 1)
 
   /* Functions */
   /** Initialization **/
-  void make_grid( const std::vector<Track>& tracks );
+  void make_grid( std::vector<Track>& tracks );
 private:
   /* Functions */
   /** Utilities **/
@@ -89,6 +90,8 @@ private:
     const std::vector<uint32_t>& vec );
   uint32_t find_upper_bound( const uint32_t& val,
     const std::vector<uint32_t>& vec );
+  void resize_width( const uint32_t& coor, uint32_t& width,
+    const uint32_t& lower, const uint32_t& upper );
 };
 
 #endif

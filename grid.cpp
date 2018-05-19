@@ -1,18 +1,25 @@
 #include "grid.h"
 
-void Grid::make_grid( const std::vector<Track>& tracks )
+void Grid::make_grid( std::vector<Track>& tracks )
 {
   /* Axes */
   // Add tracks to axis-to-coordinate vector
-  for ( const auto& track : tracks ) {
-    const auto& dir = track.direction();
-    const auto& line = track.line;
-    const auto& coor = dir ? line.upper.x : line.upper.y;
+  for ( auto& track : tracks ) {
+    auto& layer = layers[track.line.l];
+    auto& sublayer = layer.sublayers[track.line.sl];
+    const auto& dir = layer.direction; // (vertical: 0, horizontal: 1)
+    const auto& coor = track.line.upper.coor[dir];
+
+    // Check if the track has enough space to the design boundary
+    const auto& boundary_low = boundary.lower.coor[dir] + sublayer.spacing;
+    const auto& boundary_upp = boundary.upper.coor[dir] - sublayer.spacing;
+    resize_width( coor, track.width, boundary_low, boundary_upp );
+
     axis_coor[dir].push_back( coor );
 
     // Add tracks to corresponding layers and sublayers
-    layers[line.l].ltra_coor.push_back( coor );
-    layers[line.l].sublayers[line.sl].sltra_coor.push_back( coor );
+    layer.ltra_coor.push_back( coor );
+    sublayer.sltra_coor.push_back( coor );
   }
 
   /* Tracks */
@@ -103,15 +110,14 @@ void Grid::make_grid( const std::vector<Track>& tracks )
 
   /* Track Widths */
   for ( const auto& track : tracks ) {
-    const auto& dir = track.direction();
-
-    const auto& track_coor = dir ? track.line.upper.x : track.line.upper.y;
-    const auto& lower_coor = dir ? track.line.lower.y : track.line.lower.x;
-    const auto& upper_coor = dir ? track.line.upper.y : track.line.upper.x;
-
     auto& layer = layers[track.line.l];
     auto& sublayer = layer.sublayers[track.line.sl];
     auto& grid_nodes = sublayer.grid_nodes;
+
+    const auto& dir = layer.direction; // (vertical: 0, horizontal: 1)
+    const auto& track_coor = track.line.upper.coor[dir];
+    const auto& lower_coor = track.line.lower.coor[!dir];
+    const auto& upper_coor = track.line.upper.coor[!dir];
 
     uint32_t track_index = find_lower_bound( track_coor, sublayer.sltra_coor );
     uint32_t from_index = find_upper_bound( lower_coor, layer.lint_coor );
@@ -182,4 +188,16 @@ uint32_t Grid::find_upper_bound( const uint32_t& val,
   if ( val > vec.back() ) return UINT32_MAX;
   auto it = std::lower_bound( vec.begin(), vec.end(), val );
   return ( it-vec.begin() );
+}
+
+void Grid::resize_width( const uint32_t& coor, uint32_t& width,
+  const uint32_t& lower, const uint32_t& upper )
+{
+  if ( coor <= lower || coor >= upper ) {
+    width = 0;
+    return;
+  }
+
+  auto max_width = std::min( coor - lower, upper - coor ) << 1;
+  width = std::min( max_width, width );
 }

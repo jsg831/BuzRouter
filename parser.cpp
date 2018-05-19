@@ -39,16 +39,16 @@ void Parser::parse( std::string filename, Router& router )
       ss >> word;
       router.epsilon = convert( word );
     } else if ( word == "DESIGN_BOUNDARY" ) {
-      Point& lower = router.design_boundary.lower;
-      Point& upper = router.design_boundary.upper;
+      Point& lower = router.grid.boundary.lower;
+      Point& upper = router.grid.boundary.upper;
       ss >> word;
-      lower.x = convert( word.substr( 1, word.size()-1 ) );
+      lower.coor[0] = convert( word.substr( 1, word.size()-1 ) );
       ss >> word;
-      lower.y = convert( word.substr( 0, word.size()-1 ) );
+      lower.coor[1] = convert( word.substr( 0, word.size()-1 ) );
       ss >> word;
-      upper.x = convert( word.substr( 1, word.size()-1 ) );
+      upper.coor[0] = convert( word.substr( 1, word.size()-1 ) );
       ss >> word;
-      upper.y = convert( word.substr( 0, word.size()-1 ) );
+      upper.coor[1] = convert( word.substr( 0, word.size()-1 ) );
     } else if ( word == "LAYERS" ) {
       layer_flag = 1;
       ss >> word;
@@ -70,7 +70,7 @@ void Parser::parse( std::string filename, Router& router )
       sublayer.name = word;
 
       ss >> word;
-      layer.direction = (word == "vertical");
+      layer.direction = (word == "horizontal");
 
       ss >> word;
       sublayer.spacing = convert( word );
@@ -103,13 +103,13 @@ void Parser::parse( std::string filename, Router& router )
       Point& upper = track.line.upper;
 
       ss >> word;
-      lower.x = convert( word.substr( 1, word.size()-1 ) );
+      lower.coor[0] = convert( word.substr( 1, word.size()-1 ) );
       ss >> word;
-      lower.y = convert( word.substr( 0, word.size()-1 ) );
+      lower.coor[1] = convert( word.substr( 0, word.size()-1 ) );
       ss >> word;
-      upper.x = convert( word.substr( 1, word.size()-1 ) );
+      upper.coor[0] = convert( word.substr( 1, word.size()-1 ) );
       ss >> word;
-      upper.y = convert( word.substr( 0, word.size()-1 ) );
+      upper.coor[1] = convert( word.substr( 0, word.size()-1 ) );
       ss >> word;
       track.width = convert( word );
     } else if ( obstacle_flag ) {
@@ -123,13 +123,13 @@ void Parser::parse( std::string filename, Router& router )
       Point& upper = obstacle.upper;
 
       ss >> word;
-      lower.x = convert( word.substr( 1, word.size()-1 ) );
+      lower.coor[0] = convert( word.substr( 1, word.size()-1 ) );
       ss >> word;
-      lower.y = convert( word.substr( 0, word.size()-1 ) );
+      lower.coor[1] = convert( word.substr( 0, word.size()-1 ) );
       ss >> word;
-      upper.x = convert( word.substr( 1, word.size()-1 ) );
+      upper.coor[0] = convert( word.substr( 1, word.size()-1 ) );
       ss >> word;
-      upper.y = convert( word.substr( 0, word.size()-1 ) );
+      upper.coor[1] = convert( word.substr( 0, word.size()-1 ) );
     }
   }
 }
