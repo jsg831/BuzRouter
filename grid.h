@@ -12,9 +12,9 @@ struct GridNode
 {
 public:
   /* Variables */
-  uint32_t cost;
-  uint16_t width_cur = 0;
-  uint16_t width_low = 0;
+  uint64_t cost;
+  uint32_t width_cur = 0;
+  uint32_t width_low = UINT32_MAX;
 
   uint8_t routable_cur;
   uint8_t routable_low;
@@ -78,9 +78,15 @@ public:
   /* Functions */
   /** Initialization **/
   void make_grid( std::vector<Track>& tracks );
+  void add_obstacles( const std::vector<Rectangle>& obstacles );
 private:
   /* Functions */
   /** Utilities **/
+  // Overflow-aware addition and substraction for unsigned numbers
+  uint32_t safe_add( const uint32_t& a, const uint32_t& b,
+    const uint32_t& bound = UINT32_MAX );
+  uint32_t safe_sub( const uint32_t& a, const uint32_t& b,
+    const uint32_t& bound = 0 );
   void remove_duplicates( std::vector<uint32_t>& vec );
   void convert_index( std::vector<uint32_t>& conv_vec,
     const std::vector<uint32_t>& vec, const std::vector<uint32_t>& sub_vec );
@@ -90,7 +96,13 @@ private:
     const std::vector<uint32_t>& vec );
   uint32_t find_upper_bound( const uint32_t& val,
     const std::vector<uint32_t>& vec );
-  void resize_width( const uint32_t& coor, uint32_t& width,
+  // Resize the widths of tracks inside (lower, upper) and set the widths
+  // outside (lower, upper) to zero.
+  void resize_width_in( const uint32_t& coor, uint32_t& width,
+    const uint32_t& lower, const uint32_t& upper );
+  // Resize the widths of tracks outside (lower, upper) and set the widths
+  // inside (lower, upper) to zero.
+  void resize_width_out( const uint32_t& coor, uint32_t& width,
     const uint32_t& lower, const uint32_t& upper );
 };
 

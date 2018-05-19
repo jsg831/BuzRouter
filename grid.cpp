@@ -1,5 +1,7 @@
 #include "grid.h"
 
+#define OBS_EXT 8
+
 void Grid::make_grid( std::vector<Track>& tracks )
 {
   /* Axes */
@@ -13,7 +15,7 @@ void Grid::make_grid( std::vector<Track>& tracks )
     // Check if the track has enough space to the design boundary
     const auto& boundary_low = boundary.lower.coor[dir] + sublayer.spacing;
     const auto& boundary_upp = boundary.upper.coor[dir] - sublayer.spacing;
-    resize_width( coor, track.width, boundary_low, boundary_upp );
+    resize_width_in( coor, track.width, boundary_low, boundary_upp );
 
     axis_coor[dir].push_back( coor );
 
@@ -123,22 +125,62 @@ void Grid::make_grid( std::vector<Track>& tracks )
     uint32_t from_index = find_upper_bound( lower_coor, layer.lint_coor );
     uint32_t to_index = find_lower_bound( upper_coor, layer.lint_coor );
 
-    // If the track is out of bound, ignore it.
-    if ( from_index == UINT32_MAX || to_index == UINT32_MAX ) continue;
-
-    // If the track is an internode track, set the width_low of the upper node.
-    if ( from_index > to_index ) {
-      auto& width_low = grid_nodes[track_index][from_index].width_low;
-      if ( width_low < track.width ) width_low = track.width;
-      continue;
-    }
-
     // Set the widths of on-track grid nodes if smaller than the track width.
     do {
       auto& width_cur = grid_nodes[track_index][from_index].width_cur;
       if ( width_cur < track.width ) width_cur = track.width;
     } while ( ++from_index <= to_index );
   }
+}
+
+void Grid::add_obstacles( const std::vector<Rectangle>& obstacles )
+{
+  for ( const auto& obstacle : obstacles ) {
+    auto& layer = layers[obstacle.l];
+    auto& sublayer = layer.sublayers[obstacle.sl];
+    auto& grid_nodes = sublayer.grid_nodes;
+
+    const auto& dir = layer.direction; // (vertical: 0, horizontal: 1)
+    const auto& spacing = sublayer.spacing;
+    const auto coor_tra_low = safe_sub( obstacle.lower.coor[dir], spacing );
+    const auto coor_tra_upp = safe_add( obstacle.upper.coor[dir], spacing );
+    const auto coor_int_low = safe_sub( obstacle.lower.coor[!dir], spacing );
+    const auto coor_int_upp = safe_add( obstacle.upper.coor[!dir], spacing );
+
+    // Find the bound of indices where the grid nodes intersect with the
+    // obstacle.
+    auto from_tra = find_upper_bound( coor_tra_low, sublayer.sltra_coor );
+    auto to_tra = find_lower_bound( coor_tra_upp, sublayer.sltra_coor );
+    auto from_int = find_upper_bound( coor_int_low, layer.lint_coor );
+    auto to_int = find_lower_bound( coor_int_upp, layer.lint_coor );
+
+    do {
+      // Extend the bound by OBS_EXT
+      auto from_tra_ov = safe_sub( from_tra, OBS_EXT );
+      auto to_tra_ov = safe_add( to_tra, OBS_EXT,
+        sublayer.sltra_coor.size() - 1 );
+      for ( uint32_t t = from_tra_ov; t <= to_tra_ov; ++t ) {
+        if ( from_int > to_int )
+          resize_width_out( sublayer.sltra_coor[t],
+            grid_nodes[t][from_int].width_low, coor_tra_low, coor_tra_upp );
+        else
+          resize_width_out( sublayer.sltra_coor[t],
+            grid_nodes[t][from_int].width_cur, coor_tra_low, coor_tra_upp );
+      }
+    } while ( ++from_int <= to_int );
+  }
+}
+
+uint32_t Grid::safe_add( const uint32_t& a, const uint32_t& b,
+  const uint32_t& bound )
+{
+  return ( (a + b >= a) && (a + b <= bound) ) ? ( a + b ) : bound;
+}
+
+uint32_t Grid::safe_sub( const uint32_t& a, const uint32_t& b,
+  const uint32_t& bound )
+{
+  return ( (a - b <= a) && (a - b >= bound) ) ? ( a - b ) : bound;
 }
 
 void Grid::remove_duplicates( std::vector<uint32_t>& vec )
@@ -190,7 +232,7 @@ uint32_t Grid::find_upper_bound( const uint32_t& val,
   return ( it-vec.begin() );
 }
 
-void Grid::resize_width( const uint32_t& coor, uint32_t& width,
+void Grid::resize_width_in( const uint32_t& coor, uint32_t& width,
   const uint32_t& lower, const uint32_t& upper )
 {
   if ( coor <= lower || coor >= upper ) {
@@ -199,5 +241,17 @@ void Grid::resize_width( const uint32_t& coor, uint32_t& width,
   }
 
   auto max_width = std::min( coor - lower, upper - coor ) << 1;
+  width = std::min( max_width, width );
+}
+
+void Grid::resize_width_out( const uint32_t& coor, uint32_t& width,
+  const uint32_t& lower, const uint32_t& upper )
+{
+  if ( coor >= lower && coor <= upper ) {
+    width = 0;
+    return;
+  }
+
+  auto max_width = (( coor > upper ) ? (coor - upper) : (lower - coor)) << 1;
   width = std::min( max_width, width );
 }
