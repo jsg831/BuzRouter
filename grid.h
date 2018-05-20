@@ -22,7 +22,7 @@ public:
   uint8_t routable_low;
   uint8_t visited;
 
-  enum FlagBit { obs_low, obs_upp };
+  enum FlagBit { obs_low, obs_upp, nbit_from_low, nbit_from_upp };
   void set_bit( const FlagBit bit, const bool flag );
   bool get_bit( const FlagBit bit ) const;
 private:
@@ -87,7 +87,8 @@ public:
   void add_obstacles( const std::vector<Rectangle>& obstacles );
 
   /** N-bit routable map **/
-  void update_nbit_routable_map( const uint32_t& bus_width );
+  void update_nbit_routable_map( const uint8_t Nbit,
+    const uint32_t& bus_width );
 private:
   /* Functions */
   /** Utilities **/

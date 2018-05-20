@@ -25,7 +25,6 @@ public:
 
   /** Initialization **/
   void initialize( void );
-private:
 };
 
 #endif
