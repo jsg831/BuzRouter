@@ -16,7 +16,7 @@ public:
   /* Variables */
   uint64_t cost;
   uint16_t width_cur = 0;
-  uint16_t width_low = UINT16_MAX;
+  uint16_t width_low = 0;
 
   uint8_t routable_cur;
   uint8_t routable_low;
@@ -85,6 +85,9 @@ public:
   /** Initialization **/
   void make_grid( std::vector<Track>& tracks );
   void add_obstacles( const std::vector<Rectangle>& obstacles );
+
+  /** N-bit routable map **/
+  void update_nbit_routable_map( const uint32_t& bus_width );
 private:
   /* Functions */
   /** Utilities **/

@@ -126,7 +126,9 @@ void Grid::make_grid( std::vector<Track>& tracks )
     // Set the widths of on-track grid nodes if smaller than the track width.
     do {
       auto& width_cur = grid_nodes[track_index][from_index].width_cur;
+      auto& width_low = grid_nodes[track_index][from_index].width_low;
       if ( width_cur < track.width ) width_cur = track.width;
+      if ( width_low < track.width ) width_low = track.width;
     } while ( ++from_index <= to_index );
   }
 }
@@ -193,11 +195,9 @@ void Grid::add_obstacles( const std::vector<Rectangle>& obstacles )
       }
     }
   }
-
-  //
 }
-/*
-void Grid::setup_nbit_map( const uint32_t& bus_width )
+
+void Grid::update_nbit_routable_map( const uint32_t& bus_width )
 {
   // (Current number of routable bits, previous bound)[intersection]
   std::vector< std::pair<uint8_t, uint32_t> > buffer_cur;
@@ -205,22 +205,49 @@ void Grid::setup_nbit_map( const uint32_t& bus_width )
 
   for ( auto& layer : layers ) {
     for ( auto& sublayer : layer.sublayers ) {
+      const auto& spacing = sublayer.spacing;
       auto& grid_nodes = sublayer.grid_nodes;
       buffer_cur.resize( layer.lint_coor.size() );
       buffer_low.resize( layer.lint_coor.size() );
       for ( uint32_t t = 0; t < sublayer.sltra_coor.size(); ++t ) {
+        const auto& coor_tra = sublayer.sltra_coor[t];
         for ( uint32_t i = 0; i < layer.lint_coor.size(); ++i ) {
+          auto& grid_node = grid_nodes[t][i];
           if ( t == 0 ) {
             buffer_cur[i] = std::make_pair( 0, 0 );
             buffer_low[i] = std::make_pair( 0, 0 );
           }
-          grid_nodes.width_cur
+
+          const auto coor_low = safe_sub( coor_tra, (bus_width >> 1)+spacing );
+          const auto coor_upp = coor_tra + (bus_width >> 1);
+
+          if ( grid_node.width_cur >= bus_width ) {
+            const auto nbit = safe_add( buffer_cur[i].first, 1, UINT8_MAX );
+            if ( coor_low >= buffer_cur[i].second ) {
+              buffer_cur[i] = std::make_pair( nbit, coor_upp );
+            }
+            grid_node.routable_cur = nbit;
+          } else {
+            buffer_cur[i] = std::make_pair( 0, 0 );
+            grid_node.routable_cur = 0;
+          }
+
+          if ( grid_node.width_low >= bus_width ) {
+            const auto nbit = safe_add( buffer_low[i].first, 1, UINT8_MAX );
+            if ( coor_low >= buffer_low[i].second ) {
+              buffer_low[i] = std::make_pair( nbit, coor_upp );
+            }
+            grid_node.routable_low = nbit;
+          } else {
+            buffer_low[i] = std::make_pair( 0, 0 );
+            grid_node.routable_low = 0;
+          }
         }
       }
     }
   }
 }
-*/
+
 uint32_t Grid::safe_add( const uint32_t& a, const uint32_t& b,
   const uint32_t& bound )
 {
