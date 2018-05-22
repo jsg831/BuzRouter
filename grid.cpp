@@ -197,77 +197,45 @@ void Grid::add_obstacles( const std::vector<Rectangle>& obstacles )
   }
 }
 
-void Grid::update_nbit_routable_map( const uint8_t Nbit,
-  const uint32_t& bus_width )
+void Grid::update_routable_range( const uint32_t& bus_width )
 {
-  // ( previous bound, number of bits routable [on current layer, from lower
-  // layer, from lower layer] )[intersection]
-  std::vector< std::tuple<uint32_t, uint8_t, uint8_t, uint8_t> > buffer_cur;
-  // ( previous bound, number of bits routable on current layer )[intersection]
-  std::vector< std::pair<uint32_t, uint8_t> > buffer_low;
+  // The coordinates of the upper bounds of top wires during a bottom-up update
+  std::vector<uint32_t> bound;
 
   for ( auto& layer : layers ) {
     for ( auto& sublayer : layer.sublayers ) {
       const auto& spacing = sublayer.spacing;
       auto& grid_nodes = sublayer.grid_nodes;
-      buffer_cur.resize( layer.lint_coor.size() );
-      buffer_low.resize( layer.lint_coor.size() );
-      for ( uint32_t t = 0; t < sublayer.sltra_coor.size(); ++t ) {
+      bound.clear();
+      bound.resize( layer.lint_coor.size(), 0 );
+      for ( uint32_t t = 0; t < grid_nodes.size(); ++t ) {
         const auto& coor_tra = sublayer.sltra_coor[t];
-        for ( uint32_t i = 0; i < layer.lint_coor.size(); ++i ) {
-          auto& grid_node = grid_nodes[t][i];
-
-          if ( t == 0 ) {
-            buffer_cur[i] = std::make_tuple( 0, 0, 0, 0 );
-            buffer_low[i] = std::make_pair( 0, 0 );
-          }
-
+        auto& track = grid_nodes[t];
+        // The start and end of the current routable range
+        uint32_t start = UINT32_MAX;
+        uint32_t end = 0;
+        for ( uint32_t i = 0; i < track.size(); ++i ) {
+          auto& grid_node = track[i];
           const auto coor_low = safe_sub( coor_tra, (bus_width >> 1)+spacing );
           const auto coor_upp = coor_tra + (bus_width >> 1);
-
-          auto bound = std::get<0>(buffer_cur[i]);
-          auto nbit_cur = std::get<1>(buffer_cur[i]);
-          auto nbit_low = std::get<2>(buffer_cur[i]);
-          auto nbit_upp = std::get<3>(buffer_cur[i]);
-
-          if ( grid_node.width_cur >= bus_width ) {
-            if ( coor_low >= bound ) {
-              bound = coor_upp;
-              nbit_cur = safe_add( nbit_cur, 1, UINT8_MAX );
-              if ( !grid_node.get_bit( GridNode::obs_low ) )
-                nbit_low = safe_add( nbit_low, 1, UINT8_MAX );
-              else
-                nbit_low = 0;
-              if ( !grid_node.get_bit( GridNode::obs_upp ) )
-                nbit_upp = safe_add( nbit_upp, 1, UINT8_MAX );
-              else
-                nbit_upp = 0;
+          const auto routable = ( coor_low >= bound[i] ) &&
+            ( grid_node.width_cur >= bus_width );
+          // Update the bound of current intersection
+          if ( routable ) bound[i] = coor_upp;
+          if ( routable && grid_node.width_low >= bus_width ) end = i;
+          else end = UINT32_MAX;
+          // If an unroutable node is reached, update nodes in the previous
+          // routable range.
+          if ( i == track.size() - 1 || end == UINT32_MAX ) {
+            for ( uint32_t j = start; j < i; ++j ) {
+              track[j].range_upp = ( end == UINT32_MAX ) ? ( i - 1 ) : i;
             }
-          } else {
-            bound = 0;
-            nbit_cur = 0;
-            nbit_low = 0;
-            nbit_upp = 0;
+            grid_node.range_upp = end;
           }
-          grid_node.routable_cur = nbit_cur;
-          grid_node.set_bit( GridNode::nbit_from_low, ( nbit_low >= Nbit ) );
-          grid_node.set_bit( GridNode::nbit_from_upp, ( nbit_upp >= Nbit ) );
-          buffer_cur[i] = std::make_tuple( bound, nbit_cur, nbit_low,
-            nbit_upp );
-
-          bound = buffer_low[i].first;
-          nbit_cur = buffer_low[i].second;
-          if ( grid_node.width_low >= bus_width ) {
-            if ( coor_low >= bound ) {
-              bound = coor_upp;
-              nbit_cur = safe_add( nbit_cur, 1, UINT8_MAX );
-            }
-          } else {
-            bound = 0;
-            nbit_cur = 0;
-          }
-          grid_node.routable_low = nbit_cur;
-          buffer_low[i] = std::make_pair( bound, nbit_cur );
+          // If the node is the first node in a routable region, update start
+          if ( routable ) start = ( start == UINT32_MAX ) ? i : start;
+          else start = UINT32_MAX;
+          grid_node.range_low = start;
         }
       }
     }
