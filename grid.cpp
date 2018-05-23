@@ -166,6 +166,7 @@ void Grid::add_obstacles( const std::vector<Rectangle>& obstacles )
           grid_node.width_cur;
         if ( t >= from_tra && t <= to_tra ) {
           width = 0;
+          if ( from_int <= to_int ) grid_node.set_bit( GridNode::obs, 1 );
         } else {
           resize_width_out( sublayer.sltra_coor[t], width, coor_tra_low,
             coor_tra_upp );
@@ -228,18 +229,39 @@ void Grid::update_routable_range( const uint32_t& bus_width )
           // routable range.
           if ( i == track.size() - 1 || end == UINT32_MAX ) {
             for ( uint32_t j = start; j < i; ++j ) {
-              track[j].range_upp = ( end == UINT32_MAX ) ? ( i - 1 ) : i;
+              track[j].range.upp = ( end == UINT32_MAX ) ? ( i - 1 ) : i;
             }
-            grid_node.range_upp = end;
+            grid_node.range.upp = end;
           }
           // If the node is the first node in a routable region, update start
           if ( routable ) start = ( start == UINT32_MAX ) ? i : start;
           else start = UINT32_MAX;
-          grid_node.range_low = start;
+          grid_node.range.low = start;
         }
       }
     }
   }
+}
+
+NbitRange Grid::routable_range( const Node& node, const NbitRange& range )
+{
+  const auto& sublayer = layers[node.l].sublayers[node.sl];
+  const auto& grid_nodes = sublayer.grid_nodes;
+  auto t = node.t;
+  auto i = node.i;
+
+  NbitRange range_new;
+  while ( range_new.nbit != range.nbit && t != UINT32_MAX ) {
+    const auto& grid_node = grid_nodes[t][i];
+    if ( grid_node.obstructed() ) break;
+    if ( !grid_node.routable() ) continue;
+    if ( grid_node.range.low > range.low || grid_node.range.upp < range.upp )
+      continue;
+    range_new.set_range( range_intersection( range_new, grid_node.range ) );
+    range_new.nbit++;
+    t--;
+  }
+  return range_new;
 }
 
 uint32_t Grid::safe_add( const uint32_t& a, const uint32_t& b,
@@ -325,4 +347,9 @@ void Grid::resize_width_out( const uint32_t& coor, uint16_t& width,
 
   auto max_width = (( coor > upper ) ? (coor - upper) : (lower - coor)) << 1;
   width = ( max_width < width ) ? max_width : width;
+}
+
+Range Grid::range_intersection( const Range& a, const Range& b )
+{
+  return ( Range(std::max(a.low, b.low), std::min(a.upp, b.upp)) );
 }
