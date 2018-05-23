@@ -90,7 +90,8 @@ public:
 
   /** Routablility **/
   void update_routable_range( const uint32_t& bus_width );
-  NbitRange routable_range( const Node& node, const NbitRange& range );
+  NbitRange routable_range( const uint32_t& bus_width, const Node& node,
+    const NbitRange& range );
 private:
   /* Functions */
   /** Utilities **/

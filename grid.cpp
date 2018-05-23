@@ -200,29 +200,18 @@ void Grid::add_obstacles( const std::vector<Rectangle>& obstacles )
 
 void Grid::update_routable_range( const uint32_t& bus_width )
 {
-  // The coordinates of the upper bounds of top wires during a bottom-up update
-  std::vector<uint32_t> bound;
-
   for ( auto& layer : layers ) {
     for ( auto& sublayer : layer.sublayers ) {
-      const auto& spacing = sublayer.spacing;
       auto& grid_nodes = sublayer.grid_nodes;
-      bound.clear();
-      bound.resize( layer.lint_coor.size(), 0 );
       for ( uint32_t t = 0; t < grid_nodes.size(); ++t ) {
-        const auto& coor_tra = sublayer.sltra_coor[t];
         auto& track = grid_nodes[t];
         // The start and end of the current routable range
         uint32_t start = UINT32_MAX;
         uint32_t end = 0;
         for ( uint32_t i = 0; i < track.size(); ++i ) {
           auto& grid_node = track[i];
-          const auto coor_low = safe_sub( coor_tra, (bus_width >> 1)+spacing );
-          const auto coor_upp = coor_tra + (bus_width >> 1);
-          const auto routable = ( coor_low >= bound[i] ) &&
-            ( grid_node.width_cur >= bus_width );
+          const auto routable = ( grid_node.width_cur >= bus_width );
           // Update the bound of current intersection
-          if ( routable ) bound[i] = coor_upp;
           if ( routable && grid_node.width_low >= bus_width ) end = i;
           else end = UINT32_MAX;
           // If an unroutable node is reached, update nodes in the previous
@@ -243,23 +232,29 @@ void Grid::update_routable_range( const uint32_t& bus_width )
   }
 }
 
-NbitRange Grid::routable_range( const Node& node, const NbitRange& range )
+NbitRange Grid::routable_range( const uint32_t& bus_width, const Node& node,
+  const NbitRange& range )
 {
   const auto& sublayer = layers[node.l].sublayers[node.sl];
+  // Minimum space between two routing tracks
+  const auto& min_space = sublayer.spacing + bus_width;
   const auto& grid_nodes = sublayer.grid_nodes;
   auto t = node.t;
   auto i = node.i;
 
   NbitRange range_new;
+  uint32_t bound = UINT32_MAX;
   while ( range_new.nbit != range.nbit && t != UINT32_MAX ) {
     const auto& grid_node = grid_nodes[t][i];
+    const auto& coor_tra = sublayer.sltra_coor[t];
     if ( grid_node.obstructed() ) break;
-    if ( !grid_node.routable() ) continue;
+    t--;
+    if ( !(grid_node.routable() && coor_tra <= bound ) ) continue;
     if ( grid_node.range.low > range.low || grid_node.range.upp < range.upp )
       continue;
     range_new.set_range( range_intersection( range_new, grid_node.range ) );
     range_new.nbit++;
-    t--;
+    bound = safe_sub( coor_tra, min_space );
   }
   return range_new;
 }
