@@ -18,13 +18,15 @@ public:
   uint16_t width_cur = 0;
   uint16_t width_low = 0;
 
-  uint8_t routable_cur;
-  uint8_t routable_low;
-  uint8_t visited;
+  Range range;
 
-  enum FlagBit { obs_low, obs_upp, nbit_from_low, nbit_from_upp };
+  enum FlagBit { obs, obs_low, obs_upp };
+
+  /* Functions */
   void set_bit( const FlagBit bit, const bool flag );
   bool get_bit( const FlagBit bit ) const;
+  bool obstructed( void ) const;
+  bool routable( void ) const;
 private:
   std::bitset<32> flags;
 };
@@ -86,9 +88,10 @@ public:
   void make_grid( std::vector<Track>& tracks );
   void add_obstacles( const std::vector<Rectangle>& obstacles );
 
-  /** N-bit routable map **/
-  void update_nbit_routable_map( const uint8_t Nbit,
-    const uint32_t& bus_width );
+  /** Routablility **/
+  void update_routable_range( const uint32_t& bus_width );
+  NbitRange routable_range( const uint32_t& bus_width, const Node& node,
+    const NbitRange& range );
 private:
   /* Functions */
   /** Utilities **/
@@ -117,6 +120,8 @@ private:
   // inside (lower, upper) to zero.
   void resize_width_out( const uint32_t& coor, uint16_t& width,
     const uint32_t& lower, const uint32_t& upper );
+  // Return the intersection of two ranges
+  Range range_intersection( const Range& a, const Range& b );
 };
 
 #endif
