@@ -22,6 +22,7 @@ public:
   std::vector<uint32_t> layer_widths;
   std::vector<Bit> bits;
   std::vector<Pinout> pinouts;
+  std::vector<std::vector< uint32_t >> bus_widths;
   /* Functions */
   void initialize_pinouts( void );
 };
