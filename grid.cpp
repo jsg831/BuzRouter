@@ -144,8 +144,9 @@ void Grid::add_obstacles( const std::vector<Rectangle>& obstacles )
     const auto& spacing = sublayer.spacing;
     const auto coor_tra_low = safe_sub( obstacle.lower.coor[dir], spacing );
     const auto coor_tra_upp = safe_add( obstacle.upper.coor[dir], spacing );
-    const auto coor_int_low = safe_sub( obstacle.lower.coor[!dir], spacing );
-    const auto coor_int_upp = safe_add( obstacle.upper.coor[!dir], spacing );
+    // No line-end rules.
+    const auto coor_int_low = safe_add( obstacle.lower.coor[!dir], 1 );
+    const auto coor_int_upp = safe_sub( obstacle.upper.coor[!dir], 1 );
 
     // Find the bound of indices where the grid nodes intersect with the
     // obstacle.
