@@ -13,6 +13,13 @@ public:
   std::vector<Rectangle> pin_shapes;
 };
 
+struct Pinout
+{
+  bool direction;
+  bool bit_order;
+  std::vector<Rectangle> pin_shapes;
+};
+
 struct Bus
 {
 public:
@@ -23,7 +30,7 @@ public:
   std::vector< std::vector<uint32_t> > bus_widths;
   std::vector<Pinout> pinouts;
   /* Functions */
-  void initialize_pinouts( void );
+  void initialize( void );
 };
 
 #endif
