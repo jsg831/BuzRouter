@@ -199,10 +199,14 @@ void Grid::add_obstacles( const std::vector<Rectangle>& obstacles )
   }
 }
 
-void Grid::update_routable_range( const uint32_t& bus_width )
+void Grid::update_routable_range(
+  const std::vector< std::vector<uint32_t> >& bus_widths )
 {
-  for ( auto& layer : layers ) {
-    for ( auto& sublayer : layer.sublayers ) {
+  for ( auto l = 0; l < layers.size(); ++l ) {
+    auto& layer = layers[l];
+    for ( auto sl = 0; sl < layer.sublayers.size(); ++sl ) {
+      auto& sublayer = layer.sublayers[sl];
+      const auto& bus_width = bus_widths[l][sl];
       auto& grid_nodes = sublayer.grid_nodes;
       for ( uint32_t t = 0; t < grid_nodes.size(); ++t ) {
         auto& track = grid_nodes[t];
