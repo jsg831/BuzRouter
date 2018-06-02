@@ -13,22 +13,12 @@ struct Range
 {
 public:
   uint32_t low = 0;
-  uint32_t upp = UINT32_MAX;
-
+  uint32_t upp = -1;
+  /** Constructors **/
   Range( void ) { }
   Range( uint32_t low, uint32_t upp ) : low(low), upp(upp) { }
-};
-
-struct NbitRange : public Range
-{
-public:
-  uint8_t nbit = 0;
-
-  void set_range( const Range& range )
-  {
-    low = range.low;
-    upp = range.upp;
-  }
+  /** Functions **/
+  bool contains( uint32_t val ) const;
 };
 
 struct Node

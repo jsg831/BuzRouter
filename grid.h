@@ -26,9 +26,30 @@ public:
   void set_bit( const FlagBit bit, const bool flag );
   bool get_bit( const FlagBit bit ) const;
   bool obstructed( void ) const;
+  bool obstructed_low( void ) const;
+  bool obstructed_upp( void ) const;
   bool routable( void ) const;
+  bool routable_to( uint32_t i ) const;
 private:
-  std::bitset<32> flags;
+  std::bitset<32> flags = 0;
+};
+
+struct RoutingNode
+{
+  Node node;
+  bool locked = 0;
+  struct {
+    // (0: lower, 1: upper)
+    bool pre;
+    bool cur;
+  } heading;
+  uint8_t l_pre;
+  uint8_t sl_pre;
+  uint32_t i_pre;
+  std::vector<uint32_t> t_pre;
+  uint32_t i_cur;
+  std::vector<uint32_t> t_cur;
+  Range range;
 };
 
 struct Sublayer
@@ -78,21 +99,20 @@ public:
   /* Variables */
   Rectangle boundary;
   std::vector<Layer> layers;
-
   /** Index Conversion **/
   // Axis index to physical coordinates
   std::vector<uint32_t> axis_coor[2]; // (vertical(x): 0, horizontal(y): 1)
-
   /* Functions */
   /** Initialization **/
   void make_grid( std::vector<Track>& tracks );
   void add_obstacles( const std::vector<Rectangle>& obstacles );
-
   /** Routablility **/
   void update_routable_range(
     const std::vector< std::vector<uint32_t> >& bus_widths );
-  NbitRange routable_range( const uint32_t& bus_width, const Node& node,
-    const NbitRange& range );
+  /** Routing **/
+  bool update_tracks( Node n, uint8_t b, uint32_t s, uint32_t i,
+    uint32_t t_bound, std::vector<uint32_t>& t );
+  bool check_vias( RoutingNode& rn, bool via_type );
 private:
   /* Functions */
   /** Utilities **/
@@ -121,8 +141,6 @@ private:
   // inside (lower, upper) to zero.
   void resize_width_out( const uint32_t& coor, uint16_t& width,
     const uint32_t& lower, const uint32_t& upper );
-  // Return the intersection of two ranges
-  Range range_intersection( const Range& a, const Range& b );
 };
 
 #endif
