@@ -89,7 +89,8 @@ public:
   void add_obstacles( const std::vector<Rectangle>& obstacles );
 
   /** Routablility **/
-  void update_routable_range( const uint32_t& bus_width );
+  void update_routable_range(
+    const std::vector< std::vector<uint32_t> >& bus_widths );
   NbitRange routable_range( const uint32_t& bus_width, const Node& node,
     const NbitRange& range );
 private:

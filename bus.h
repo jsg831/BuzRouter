@@ -4,13 +4,19 @@
 #include <cstdint>
 #include <string>
 #include <vector>
-#include "topology.h"
 #include "utils.h"
 
 struct Bit
 {
 public:
   std::string name;
+  std::vector<Rectangle> pin_shapes;
+};
+
+struct Pinout
+{
+  bool direction;
+  bool bit_order;
   std::vector<Rectangle> pin_shapes;
 };
 
@@ -21,10 +27,10 @@ public:
   std::string name;
   std::vector<uint32_t> layer_widths;
   std::vector<Bit> bits;
+  std::vector< std::vector<uint32_t> > bus_widths;
   std::vector<Pinout> pinouts;
-  std::vector<std::vector< uint32_t >> bus_widths;
   /* Functions */
-  void initialize_pinouts( void );
+  void initialize( void );
 };
 
 #endif
