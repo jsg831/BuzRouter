@@ -267,10 +267,10 @@ bool Grid::check_vias( RoutingNode& rn, bool via_type )
   const auto& layer_cur = layers[rn.node.l];
   const auto& sublayer_cur = layer_cur.sublayers[rn.node.sl];
   const auto& grid_nodes_cur = sublayer_cur.grid_nodes;
-  const auto& conv_cur_pre = (rn.node.l > rn.l_pre) ?
-    sublayer_pre.sltra_ulint : sublayer_pre.sltra_llint;
-  const auto& conv_pre_cur = (rn.l_pre > rn.node.l) ?
+  const auto& conv_cur_pre = (rn.l_pre > rn.node.l) ?
     sublayer_cur.sltra_ulint : sublayer_cur.sltra_llint;
+  const auto& conv_pre_cur = (rn.node.l > rn.l_pre) ?
+    sublayer_pre.sltra_ulint : sublayer_pre.sltra_llint;
   // Preprocessing
   rn.i_pre = rn.heading.cur ? conv_cur_pre[rn.t_cur.back()] :
     conv_cur_pre[rn.t_cur.front()];
@@ -282,8 +282,8 @@ bool Grid::check_vias( RoutingNode& rn, bool via_type )
   for ( auto t = 0; t < nbits; ++t ) {
     const auto& t_pre = rn.t_pre[t];
     const auto& t_cur = via_type ? rn.t_cur[t] : rn.t_cur[nbits-t-1];
-    const auto& iv_pre = conv_pre_cur[t_pre];
-    const auto& iv_cur = conv_cur_pre[t_cur];
+    const auto& iv_pre = conv_cur_pre[t_cur];
+    const auto& iv_cur = conv_pre_cur[t_pre];
     const auto& via_pre = grid_nodes_pre[t_pre][iv_pre];
     const auto& via_cur = grid_nodes_cur[t_cur][iv_cur];
     // Check if the previous track is routable to the via
