@@ -16,10 +16,9 @@ void Bus::initialize( void )
     pinout.bit_order = ( c0[dir] > c1[dir] );
     pinout.pin_shapes.resize( bits.size() );
     for ( auto i = 0; i < bits.size(); ++i ) {
-      if ( pinout.bit_order )
-        pinout.pin_shapes[i] = bits[i].pin_shapes[p];
-      else
-        pinout.pin_shapes[i] = bits[i].pin_shapes[p];
+      pinout.pin_shapes[i] = bits[i].pin_shapes[p];
     }
+    if ( !pinout.bit_order ) std::reverse( pinout.pin_shapes.begin(),
+      pinout.pin_shapes.end() );
   }
 }

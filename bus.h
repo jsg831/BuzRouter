@@ -1,22 +1,17 @@
 #ifndef _BUS_H
 #define _BUS_H
 
+#include <algorithm>
 #include <cstdint>
 #include <string>
 #include <vector>
+#include "grid.h"
 #include "utils.h"
 
 struct Bit
 {
 public:
   std::string name;
-  std::vector<Rectangle> pin_shapes;
-};
-
-struct Pinout
-{
-  bool direction;
-  bool bit_order;
   std::vector<Rectangle> pin_shapes;
 };
 

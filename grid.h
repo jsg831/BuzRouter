@@ -52,6 +52,14 @@ struct RoutingNode
   Range range;
 };
 
+struct Pinout
+{
+  bool direction;
+  bool bit_order;
+  std::vector<Rectangle> pin_shapes;
+  std::vector<RoutingNode> nodes;
+};
+
 struct Sublayer
 {
 public:
@@ -109,6 +117,9 @@ public:
   /** Routablility **/
   void update_routable_range(
     const std::vector< std::vector<uint32_t> >& bus_widths );
+  /** Pinout **/
+  bool generate_pinout_nodes( Pinout& pinout, uint8_t l, uint8_t sl,
+    bool heading );
   /** Routing **/
   bool update_tracks( Node n, uint8_t b, uint32_t bw, uint32_t i_start,
     bool direction, std::vector<uint32_t>& t );

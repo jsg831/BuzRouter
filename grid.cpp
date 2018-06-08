@@ -237,6 +237,48 @@ void Grid::update_routable_range(
   }
 }
 
+bool Grid::generate_pinout_nodes( Pinout& pinout, uint8_t l, uint8_t sl,
+  bool heading )
+{
+  const auto& direction = pinout.direction;
+  const auto& pin_shapes = pinout.pin_shapes;
+  RoutingNode rn;
+  rn.locked = 1;
+  rn.heading.cur = heading;
+  rn.node.l = l;
+  rn.node.sl = sl;
+  rn.t_cur.clear();
+  const auto& layer = layers[l];
+  const auto& sublayer = layer.sublayers[sl];
+  const auto& grid_nodes = sublayer.grid_nodes;
+  if ( layer.direction != direction ) return 0;
+  const auto i_pin = heading ? pin_shapes[0].upper.coor[!direction]
+    : pin_shapes[0].lower.coor[!direction];
+  const auto i_node = heading ? find_upper_bound(i_pin, layer.lint_coor)
+    : find_lower_bound(i_pin, layer.lint_coor);
+  if ( i_node == -1 ) return 0;
+  rn.node.i = i_node;
+  rn.i_cur = i_node;
+  for ( const auto& pin_shape : pin_shapes ) {
+    const auto t_pin_upp = pin_shape.upper.coor[direction];
+    const auto t_pin_low = pin_shape.lower.coor[direction];
+    auto t_node = find_lower_bound(t_pin_upp, sublayer.sltra_coor);
+    bool success = 0;
+    while ( sublayer.sltra_coor[t_node] >= t_pin_low && t_node != -1 ) {
+      const auto& grid_node = grid_nodes[t_node][i_node];
+      if ( grid_node.routable() ) {
+        rn.t_cur.push_back( t_node );
+        success = 1;
+        break;
+      }
+      t_node--;
+    }
+    if ( !success ) return 0;
+  }
+  pinout.nodes.push_back(rn);
+  return 1;
+}
+
 bool Grid::update_tracks( Node n, uint8_t b, uint32_t bw, uint32_t i_start,
   bool direction, std::vector<uint32_t>& t )
 {
