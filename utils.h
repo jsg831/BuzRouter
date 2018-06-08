@@ -14,9 +14,6 @@ struct Range
 public:
   uint32_t low = 0;
   uint32_t upp = -1;
-  /** Constructors **/
-  Range( void ) { }
-  Range( uint32_t low, uint32_t upp ) : low(low), upp(upp) { }
   /** Functions **/
   bool contains( uint32_t val ) const;
 };

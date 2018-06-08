@@ -237,24 +237,28 @@ void Grid::update_routable_range(
   }
 }
 
-bool Grid::update_tracks( Node n, uint8_t b, uint32_t s, uint32_t i,
-  uint32_t t_bound, std::vector<uint32_t>& t )
+bool Grid::update_tracks( Node n, uint8_t b, uint32_t bw, uint32_t i_start,
+  bool direction, std::vector<uint32_t>& t )
 {
   uint32_t coor_pre = -1;
+  auto nbits = b;
   const auto& sublayer = layers[n.l].sublayers[n.sl];
+  const auto s = sublayer.spacing + bw;
   const auto& grid_nodes = sublayer.grid_nodes;
-  t.clear();
+  t.resize(nbits);
   // If the first track is unroutable, return false
   if ( !grid_nodes[n.t][n.i].routable() ) return 0;
-  while ( b != 0 && n.t != -1 && sublayer.sltra_axis[n.t] >= t_bound ) {
+  while ( b != 0 && n.t != -1 && n.t != sublayer.sltra_axis.size() ) {
     uint32_t coor_cur = sublayer.sltra_coor[n.t];
     const auto& grid_node = grid_nodes[n.t][n.i];
-    if ( grid_node.routable_to(i) && coor_cur <= (coor_pre - s) ) {
-      t.push_back( n.t );
+    bool is_valid = direction ? (coor_cur >= (coor_pre + s))
+      : (coor_cur <= (coor_pre - s));
+    if ( grid_node.routable_to(i_start) && is_valid ) {
+      t[direction ? (b - 1) : (nbits - b)] = n.t;
       coor_pre = coor_cur;
       b--;
     }
-    n.t--;
+    n.t = direction ? (n.t + 1) : (n.t - 1);
   }
   return (b == 0);
 }
@@ -271,12 +275,6 @@ bool Grid::check_vias( RoutingNode& rn, bool via_type )
     sublayer_cur.sltra_ulint : sublayer_cur.sltra_llint;
   const auto& conv_pre_cur = (rn.node.l > rn.l_pre) ?
     sublayer_pre.sltra_ulint : sublayer_pre.sltra_llint;
-  // Preprocessing
-  rn.i_pre = rn.heading.cur ? conv_cur_pre[rn.t_cur.back()] :
-    conv_cur_pre[rn.t_cur.front()];
-  rn.i_cur = rn.heading.pre ? conv_pre_cur[rn.t_pre.front()] :
-    conv_cur_pre[rn.t_pre.back()];
-  // Checking vias
   bool success = 1;
   const auto nbits = rn.t_cur.size();
   for ( auto t = 0; t < nbits; ++t ) {
@@ -298,6 +296,27 @@ bool Grid::check_vias( RoutingNode& rn, bool via_type )
     if ( !success ) return 0;
   }
   return success;
+}
+
+Range Grid::routable_range( Node& n, const std::vector<uint32_t>& t,
+  bool direction )
+{
+  const auto& grid_nodes = layers[n.l].sublayers[n.sl].grid_nodes;
+  Range range;
+  auto& start = direction ? range.low : range.upp;
+  auto& end = direction ? range.upp : range.low;
+  // Set the starting intersection
+  start = n.i;
+  // Find the ending intersection nearest to the starting intersection
+  for ( const auto& track : t ) {
+    const auto& node_range = grid_nodes[track][n.i].range;
+    if ( direction ) {
+      end = ( node_range.upp < end ) ? node_range.upp : end;
+    } else {
+      end = ( node_range.low > end ) ? node_range.low : end;
+    }
+  }
+  return range;
 }
 
 uint32_t Grid::safe_add( const uint32_t& a, const uint32_t& b,

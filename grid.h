@@ -110,9 +110,11 @@ public:
   void update_routable_range(
     const std::vector< std::vector<uint32_t> >& bus_widths );
   /** Routing **/
-  bool update_tracks( Node n, uint8_t b, uint32_t s, uint32_t i,
-    uint32_t t_bound, std::vector<uint32_t>& t );
+  bool update_tracks( Node n, uint8_t b, uint32_t bw, uint32_t i_start,
+    bool direction, std::vector<uint32_t>& t );
   bool check_vias( RoutingNode& rn, bool via_type );
+  Range routable_range( Node& n, const std::vector<uint32_t>& t,
+    bool direction );
 private:
   /* Functions */
   /** Utilities **/
