@@ -19,6 +19,7 @@ struct Bus
 {
 public:
   /* Variables */
+  bool valid = 1;
   std::string name;
   std::vector<Bit> bits;
   std::vector< std::vector<uint32_t> > bus_widths;

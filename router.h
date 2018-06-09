@@ -2,10 +2,20 @@
 #define _ROUTER_H
 
 #include <cstdint>
+#include <queue>
 #include <vector>
 #include "bus.h"
 #include "grid.h"
 #include "utils.h"
+
+#define VIA_COST 10000
+
+struct RoutingOrder
+{
+public:
+  bool operator() ( const RoutingNode& _lhs, const RoutingNode& _rhs )
+    { return _lhs.cost > _rhs.cost; }
+};
 
 class Router
 {
@@ -23,8 +33,13 @@ public:
 
   std::vector<Bus> buses;
 
-  /** Initialization **/
   void initialize( void );
+  void route_all( void );
+private:
+  bool route( const Bus& bus, uint32_t s, uint32_t t );
+  void set_target( const RoutingNode& rn, bool bit );
+  void backtrack( const Node& source, const Node& target );
+  void clear_marks( const std::vector<Node>& nodes );
 };
 
 #endif

@@ -11,8 +11,8 @@ void Grid::make_grid( std::vector<Track>& tracks )
     const auto& coor = track.line.upper.coor[dir];
 
     // Check if the track has enough space to the design boundary
-    const auto& boundary_low = boundary.lower.coor[dir] + sublayer.spacing;
-    const auto& boundary_upp = boundary.upper.coor[dir] - sublayer.spacing;
+    const auto boundary_low = boundary.lower.coor[dir] + sublayer.spacing;
+    const auto boundary_upp = boundary.upper.coor[dir] - sublayer.spacing;
     resize_width_in( coor, track.width, boundary_low, boundary_upp );
 
     axis_coor[dir].push_back( coor );
@@ -215,7 +215,8 @@ void Grid::update_routable_range(
         uint32_t end = 0;
         for ( uint32_t i = 0; i < track.size(); ++i ) {
           auto& grid_node = track[i];
-          const auto routable = ( grid_node.width_cur >= bus_width );
+          grid_node.cost = -1;
+          bool routable = ( grid_node.width_cur >= bus_width );
           // Update the bound of current intersection
           if ( routable && grid_node.width_low >= bus_width ) end = i;
           else end = -1;
@@ -275,6 +276,8 @@ bool Grid::generate_pinout_nodes( Pinout& pinout, uint8_t l, uint8_t sl,
     }
     if ( !success ) return 0;
   }
+  rn.node.t = rn.t_cur[0];
+  rn.range = routable_range( rn.node, rn.t_cur, rn.heading.cur );
   pinout.nodes.push_back(rn);
   return 1;
 }
@@ -282,7 +285,7 @@ bool Grid::generate_pinout_nodes( Pinout& pinout, uint8_t l, uint8_t sl,
 bool Grid::update_tracks( Node n, uint8_t b, uint32_t bw, uint32_t i_start,
   bool direction, std::vector<uint32_t>& t )
 {
-  uint32_t coor_pre = -1;
+  uint32_t coor_pre = direction ? 0 : -1;
   auto nbits = b;
   const auto& sublayer = layers[n.l].sublayers[n.sl];
   const auto s = sublayer.spacing + bw;
@@ -329,7 +332,7 @@ bool Grid::check_vias( RoutingNode& rn, bool via_type )
     // Check if the previous track is routable to the via
     success &= via_pre.routable_to(rn.i_pre);
     // Check if the current track is routable to the via
-    success &= via_cur.routable_to(rn.i_cur);
+    success &= via_cur.routable_to(rn.node.i);
     // Check if the via is obstructed by any intermediate obstacle
     success &= (rn.node.l > rn.l_pre) ?
       !via_pre.obstructed_upp() : !via_pre.obstructed_low();

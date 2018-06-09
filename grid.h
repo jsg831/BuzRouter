@@ -4,6 +4,7 @@
 #include <algorithm>
 #include <bitset>
 #include <cstdint>
+#include <iostream>
 #include <string>
 #include <vector>
 #include "utils.h"
@@ -14,13 +15,13 @@ struct GridNode
 {
 public:
   /* Variables */
-  uint64_t cost;
+  uint64_t cost = -1;
   uint16_t width_cur = 0;
   uint16_t width_low = 0;
 
   Range range;
 
-  enum FlagBit { obs, obs_low, obs_upp };
+  enum FlagBit { obs, obs_low, obs_upp, tar_low, tar_upp };
 
   /* Functions */
   void set_bit( const FlagBit bit, const bool flag );
@@ -36,6 +37,7 @@ private:
 
 struct RoutingNode
 {
+  uint64_t cost = 0;
   Node node;
   bool locked = 0;
   struct {
