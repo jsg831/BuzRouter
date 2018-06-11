@@ -18,11 +18,11 @@ public:
   uint64_t cost = -1;
   uint16_t width_cur = 0;
   uint16_t width_low = 0;
-
+  // Backtracking
+  uint32_t from;
+  uint8_t from_sl;
   Range range;
-
-  enum FlagBit { obs, obs_low, obs_upp, tar_low, tar_upp };
-
+  enum FlagBit { obs, obs_low, obs_upp, src, tar_low, tar_upp, dir, dir_l };
   /* Functions */
   void set_bit( const FlagBit bit, const bool flag );
   bool get_bit( const FlagBit bit ) const;

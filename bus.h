@@ -15,6 +15,18 @@ public:
   std::vector<Rectangle> pin_shapes;
 };
 
+struct Path
+{
+  bool bit_order;
+  Range i;
+  std::vector<uint32_t> t;
+};
+
+struct BusRoute
+{
+  std::vector<Path> paths;
+};
+
 struct Bus
 {
 public:

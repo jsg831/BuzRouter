@@ -2,13 +2,14 @@
 #define _ROUTER_H
 
 #include <cstdint>
+#include <iostream>
 #include <queue>
 #include <vector>
 #include "bus.h"
 #include "grid.h"
 #include "utils.h"
 
-#define VIA_COST 10000
+#define VIA_COST UINT32_MAX
 
 struct RoutingOrder
 {
@@ -37,9 +38,10 @@ public:
   void route_all( void );
 private:
   bool route( const Bus& bus, uint32_t s, uint32_t t );
+  bool check_node( RoutingNode& rn, const uint8_t nbits, const uint16_t bw );
+  void set_source( const RoutingNode& rn, bool bit );
   void set_target( const RoutingNode& rn, bool bit );
-  void backtrack( const Node& source, const Node& target );
-  void clear_marks( const std::vector<Node>& nodes );
+  void backtrack( Node node, const Pinout& source, const Pinout& target );
 };
 
 #endif

@@ -29,7 +29,8 @@ void Router::route_all( void )
   for ( const auto& bus : buses ) {
     if ( !bus.valid ) continue;
     grid.update_routable_range( bus.bus_widths );
-    bool success = route( bus, 0, 1 );
+    if ( route( bus, 0, 1 ) ) std::cout << "Successful!" << std::endl;
+    else std::cout << "Failed!" << std::endl;
   }
 }
 
@@ -41,10 +42,11 @@ bool Router::route( const Bus& bus, uint32_t s, uint32_t t )
   const auto nbits = source.nodes[0].t_cur.size();
   std::priority_queue<RoutingNode, std::vector<RoutingNode>, RoutingOrder>
     pq;
-  std::vector<Node> visited_nodes;
+  Node target_node;
   /* Push source nodes into the routing queue */
   for ( const auto& rn : source.nodes ) {
     pq.push( rn );
+    set_source( rn, 1 );
   }
   /* Mark all the available target nodes */
   for ( const auto& rn : target.nodes ) {
@@ -57,7 +59,6 @@ bool Router::route( const Bus& bus, uint32_t s, uint32_t t )
     auto& layer = grid.layers[rn.node.l];
     auto& sublayer = layer.sublayers[rn.node.sl];
     auto& grid_node = sublayer.grid_nodes[rn.node.t][rn.node.i];
-    if ( rn.cost >= grid_node.cost ) continue;
     const auto& bw = bus.bus_widths[rn.node.l][rn.node.sl];
     // Check if the target is reached
     if ( rn.heading.pre ? grid_node.get_bit(GridNode::tar_low)
@@ -69,19 +70,10 @@ bool Router::route( const Bus& bus, uint32_t s, uint32_t t )
       }
       if ( grid.check_vias(rn, 0) || grid.check_vias(rn, 1) ) {
         success = 1;
+        target_node = rn.node;
         break;
       }
       else continue;
-    }
-    grid_node.cost = rn.cost;
-    // If the node is the first node after changing layer or the node is out
-    // of its routable range, update the tracks and check the viability
-    if ( !rn.range.contains(rn.node.i) ) {
-      if ( rn.locked ) continue;
-      if ( !grid.update_tracks(rn.node, nbits, bw, rn.i_cur, rn.heading.pre,
-        rn.t_cur) ) continue;
-      if ( !(grid.check_vias(rn, 0) || grid.check_vias(rn, 1)) ) continue;
-      rn.range = grid.routable_range( rn.node, rn.t_cur, rn.heading.cur );
     }
     // Enqueue neighboring nodes
     RoutingNode rn_q = rn;
@@ -89,15 +81,28 @@ bool Router::route( const Bus& bus, uint32_t s, uint32_t t )
     if ( rn.heading.cur && (rn.node.i != layer.lint_coor.size()-1) ) {
       rn_q.node.i = rn.node.i + 1;
       rn_q.cost += layer.lint_coor[rn_q.node.i] - layer.lint_coor[rn.node.i];
-      pq.push( rn_q );
+      if ( check_node(rn_q, nbits, bw) ) {
+        auto& grid_node = sublayer.grid_nodes[rn_q.node.t][rn_q.node.i];
+        grid_node.from = rn_q.i_cur;
+        grid_node.set_bit(GridNode::dir, 0);
+        pq.push(rn_q);
+      }
     }
     if ( !rn.heading.cur && (rn.node.i != 0) ) {
       rn_q = rn;
       rn_q.node.i = rn.node.i - 1;
       rn_q.cost += layer.lint_coor[rn.node.i] - layer.lint_coor[rn_q.node.i];
-      pq.push( rn_q );
+      if ( check_node(rn_q, nbits, bw) ) {
+        auto& grid_node = sublayer.grid_nodes[rn_q.node.t][rn_q.node.i];
+        grid_node.from = rn_q.i_cur;
+        grid_node.set_bit(GridNode::dir, 0);
+        pq.push(rn_q);
+      }
     }
     // Change layer
+    // If the node is the first node in the path, changing layer is not allowed.
+    if ( !rn.locked && rn.node.i == rn.i_cur ) continue;
+    rn_q = rn;
     rn_q.locked = 0;
     rn_q.cost = rn.cost + VIA_COST;
     rn_q.heading.pre = rn.heading.cur;
@@ -109,10 +114,10 @@ bool Router::route( const Bus& bus, uint32_t s, uint32_t t )
     rn_q.range = Range(-1, -1);
     // Lower layer
     if ( rn.node.l != 0 ) {
-      const auto& layer_cur = grid.layers[rn.node.l-1];
+      auto& layer_cur = grid.layers[rn.node.l-1];
       rn_q.node.l = rn.node.l - 1;
       for ( uint8_t sl = 0; sl < layer_cur.sublayers.size(); ++sl ) {
-        const auto& sublayer_cur = layer_cur.sublayers[sl];
+        auto& sublayer_cur = layer_cur.sublayers[sl];
         rn_q.node.sl = sl;
         rn_q.node.t = sublayer_cur.ulint_sltra[rn.node.i];
         if ( rn_q.node.t == -1 ) continue;
@@ -120,41 +125,99 @@ bool Router::route( const Bus& bus, uint32_t s, uint32_t t )
         rn_q.heading.cur = 0;
         rn_q.i_cur = sublayer.sltra_llint[rn.t_cur.back()];
         rn_q.node.i = rn_q.i_cur;
-        pq.push( rn_q );
+        if ( check_node(rn_q, nbits, bw) ) {
+          auto& grid_node = sublayer_cur.grid_nodes[rn_q.node.t][rn_q.node.i];
+          grid_node.from = rn.node.t;
+          grid_node.set_bit(GridNode::dir, 1);
+          grid_node.set_bit(GridNode::dir_l, 0);
+          pq.push(rn_q);
+        }
         // Upper heading
         rn_q.heading.cur = 1;
         rn_q.i_cur = sublayer.sltra_llint[rn.t_cur.front()];
         rn_q.node.i = rn_q.i_cur;
-        pq.push( rn_q );
+        if ( check_node(rn_q, nbits, bw) ) {
+          auto& grid_node = sublayer_cur.grid_nodes[rn_q.node.t][rn_q.node.i];
+          grid_node.from = rn.node.t;
+          grid_node.set_bit(GridNode::dir, 1);
+          grid_node.set_bit(GridNode::dir_l, 0);
+          pq.push(rn_q);
+        }
       }
     }
     // Upper layer
     if ( rn.node.l != grid.layers.size()-1 ) {
-      const auto& layer_cur = grid.layers[rn.node.l+1];
+      auto& layer_cur = grid.layers[rn.node.l+1];
       rn_q.node.l = rn.node.l + 1;
       for ( uint8_t sl = 0; sl < layer_cur.sublayers.size(); ++sl ) {
         rn_q.node.sl = sl;
-        const auto& sublayer_cur = layer_cur.sublayers[sl];
+        auto& sublayer_cur = layer_cur.sublayers[sl];
         rn_q.node.t = sublayer_cur.llint_sltra[rn.node.i];
         if ( rn_q.node.t == -1 ) continue;
         // Lower heading
         rn_q.heading.cur = 0;
         rn_q.i_cur = sublayer.sltra_ulint[rn.t_cur.back()];
         rn_q.node.i = rn_q.i_cur;
-        pq.push( rn_q );
+        if ( check_node(rn_q, nbits, bw) ) {
+          auto& grid_node = sublayer_cur.grid_nodes[rn_q.node.t][rn_q.node.i];
+          grid_node.from = rn.node.t;
+          grid_node.set_bit(GridNode::dir, 1);
+          grid_node.set_bit(GridNode::dir_l, 1);
+          pq.push(rn_q);
+        }
         // Upper heading
         rn_q.heading.cur = 1;
         rn_q.i_cur = sublayer.sltra_ulint[rn.t_cur.front()];
         rn_q.node.i = rn_q.i_cur;
-        pq.push( rn_q );
+        if ( check_node(rn_q, nbits, bw) ) {
+          auto& grid_node = sublayer_cur.grid_nodes[rn_q.node.t][rn_q.node.i];
+          grid_node.from = rn.node.t;
+          grid_node.set_bit(GridNode::dir, 1);
+          grid_node.set_bit(GridNode::dir_l, 1);
+          pq.push(rn_q);
+        }
       }
     }
   }
-  /* Unmark all the target nodes */
+  if ( success ) backtrack(target_node, source, target);
+  /* Unmark all the source/target nodes */
+  for ( const auto& rn : source.nodes ) {
+    set_source( rn, 0 );
+  }
   for ( const auto& rn : target.nodes ) {
     set_target( rn, 0 );
   }
   return success;
+}
+
+bool Router::check_node( RoutingNode& rn, const uint8_t nbits,
+  const uint16_t bw )
+{
+  auto& layer = grid.layers[rn.node.l];
+  auto& sublayer = layer.sublayers[rn.node.sl];
+  auto& grid_node = sublayer.grid_nodes[rn.node.t][rn.node.i];
+  if ( rn.heading.pre ? grid_node.get_bit(GridNode::tar_low)
+    : grid_node.get_bit(GridNode::tar_upp) ) return 1;
+  if ( rn.cost >= grid_node.cost ) return 0;
+  // If the node is the first node after changing layer or the node is out
+  // of its routable range, update the tracks and check the viability
+  if ( !rn.range.contains(rn.node.i) ) {
+    if ( rn.locked ) return 0;
+    if ( !grid.update_tracks(rn.node, nbits, bw, rn.i_cur, rn.heading.pre,
+      rn.t_cur) ) return 0;
+    if ( !(grid.check_vias(rn, 0) || grid.check_vias(rn, 1)) ) return 0;
+    rn.range = grid.routable_range( rn.node, rn.t_cur, rn.heading.cur );
+  }
+  grid_node.cost = rn.cost;
+  return 1;
+}
+
+void Router::set_source( const RoutingNode& rn, bool bit )
+{
+  auto& layer = grid.layers[rn.node.l];
+  auto& sublayer = layer.sublayers[rn.node.sl];
+  auto& grid_nodes = sublayer.grid_nodes;
+  grid_nodes[rn.t_cur.front()][rn.node.i].set_bit( GridNode::src, bit );
 }
 
 void Router::set_target( const RoutingNode& rn, bool bit )
@@ -164,4 +227,33 @@ void Router::set_target( const RoutingNode& rn, bool bit )
   auto& grid_nodes = sublayer.grid_nodes;
   grid_nodes[rn.t_cur.front()][rn.node.i].set_bit( GridNode::tar_upp, bit );
   grid_nodes[rn.t_cur.back()][rn.node.i].set_bit( GridNode::tar_low, bit );
+}
+
+void Router::backtrack( Node node, const Pinout& source, const Pinout& target )
+{
+  bool src_reached = 0;
+  while ( !src_reached ) {
+    std::cout << "(" << (uint32_t)node.l << "," << (uint32_t)node.sl << ",";
+    std::cout << node.t << "," << node.i << ")" << std::endl;
+    const auto& layer = grid.layers[node.l];
+    const auto& sublayer = layer.sublayers[node.sl];
+    const auto& grid_node = sublayer.grid_nodes[node.t][node.i];
+    if ( grid_node.get_bit(GridNode::src) ) {
+      src_reached = 1;
+      continue;
+    }
+    if ( grid_node.get_bit(GridNode::dir) ) {
+      node.sl = grid_node.from_sl;
+      if ( grid_node.get_bit(GridNode::dir_l) ) {
+        node.l = node.l - 1;
+        node.i = sublayer.sltra_llint[node.t];
+      } else {
+        node.l = node.l + 1;
+        node.i = sublayer.sltra_ulint[node.t];
+      }
+      node.t = grid_node.from;
+    } else {
+      node.i = grid_node.from;
+    }
+  }
 }
