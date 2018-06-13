@@ -18,6 +18,9 @@ public:
 struct Path
 {
   bool bit_order;
+  bool heading;
+  uint8_t l;
+  uint8_t sl;
   Range i;
   std::vector<uint32_t> t;
 };

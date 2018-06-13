@@ -245,6 +245,8 @@ bool Grid::generate_pinout_nodes( Pinout& pinout, uint8_t l, uint8_t sl,
   const auto& pin_shapes = pinout.pin_shapes;
   RoutingNode rn;
   rn.locked = 1;
+  rn.via_free = 0;
+  rn.bit_order.cur = pinout.bit_order;
   rn.heading.cur = heading;
   rn.node.l = l;
   rn.node.sl = sl;
@@ -290,6 +292,7 @@ bool Grid::update_tracks( Node n, uint8_t b, uint32_t bw, uint32_t i_start,
   const auto& sublayer = layers[n.l].sublayers[n.sl];
   const auto s = sublayer.spacing + bw;
   const auto& grid_nodes = sublayer.grid_nodes;
+  t.clear();
   t.resize(nbits);
   // If the first track is unroutable, return false
   if ( !grid_nodes[n.t][n.i].routable() ) return 0;
@@ -340,6 +343,7 @@ bool Grid::check_vias( RoutingNode& rn, bool via_type )
       !via_cur.obstructed_upp() : !via_cur.obstructed_low();
     if ( !success ) return 0;
   }
+  rn.bit_order.cur = via_type ? rn.bit_order.pre : !rn.bit_order.pre;
   return success;
 }
 

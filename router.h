@@ -41,7 +41,8 @@ private:
   bool check_node( RoutingNode& rn, const uint8_t nbits, const uint16_t bw );
   void set_source( const RoutingNode& rn, bool bit );
   void set_target( const RoutingNode& rn, bool bit );
-  void backtrack( Node node, const Pinout& source, const Pinout& target );
+  void backtrack( BusRoute& route, Node node, const Pinout& source,
+    const Pinout& target, const std::vector< std::vector<uint32_t> >& bw );
 };
 
 #endif

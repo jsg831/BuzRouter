@@ -40,6 +40,11 @@ struct RoutingNode
   uint64_t cost = 0;
   Node node;
   bool locked = 0;
+  bool via_free = 0;
+  struct {
+    bool pre;
+    bool cur;
+  } bit_order;
   struct {
     // (0: lower, 1: upper)
     bool pre;
