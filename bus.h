@@ -29,6 +29,10 @@ struct Path
 
 struct BusRoute
 {
+  uint8_t l_src;
+  uint8_t sl_src;
+  uint8_t l_tar;
+  uint8_t sl_tar;
   std::vector<Path> paths;
   std::vector<Rectangle> wires;
 };

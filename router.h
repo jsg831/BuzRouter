@@ -2,6 +2,7 @@
 #define _ROUTER_H
 
 #include <cstdint>
+#include <fstream>
 #include <iostream>
 #include <queue>
 #include <vector>
@@ -28,13 +29,15 @@ public:
   uint32_t delta;
   uint32_t epsilon;
 
+  std::ofstream output;
+
   Grid grid;
   std::vector<Track> tracks;
   std::vector<Rectangle> obstacles;
 
   std::vector<Bus> buses;
 
-  void initialize( void );
+  void initialize( std::string& filename );
   void route_all( void );
 private:
   bool route( Bus& bus, uint32_t s, uint32_t t );
@@ -43,6 +46,8 @@ private:
   void set_target( const RoutingNode& rn, bool bit );
   bool backtrack( BusRoute& route, Node node, const Pinout& source,
     const Pinout& target, const std::vector< std::vector<uint32_t> >& bw );
+  void output_route( const Bus& bus );
+  std::string coor_string( const uint32_t& x, const uint32_t& y );
 };
 
 #endif

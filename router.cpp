@@ -1,7 +1,8 @@
 #include "router.h"
 
-void Router::initialize( void )
+void Router::initialize( std::string& filename )
 {
+  output.open( filename );
   grid.make_grid( tracks );
   grid.add_obstacles( obstacles );
   for ( auto& bus : buses ) {
@@ -27,11 +28,17 @@ void Router::initialize( void )
 void Router::route_all( void )
 {
   for ( auto& bus : buses ) {
-    if ( !bus.valid ) continue;
+    if ( !bus.valid || bus.pinouts.size() != 2 ) continue;
     grid.update_routable_range( bus.bus_widths );
-    if ( route( bus, 0, 1 ) ) std::cout << "Successful!" << std::endl;
-    else std::cout << "Failed!" << std::endl;
+    std::cout << "BUS " << bus.name << ": ";
+    if ( route( bus, 0, 1 ) ) {
+      std::cout << "Successful!" << std::endl;
+      output_route( bus );
+    } else {
+      std::cout << "Failed!" << std::endl;
+    }
   }
+  output.close();
 }
 
 bool Router::route( Bus& bus, uint32_t s, uint32_t t )
@@ -178,8 +185,14 @@ bool Router::route( Bus& bus, uint32_t s, uint32_t t )
       }
     }
   }
-  if ( success ) success = backtrack(bus.route, target_node, source, target,
-    bus.bus_widths);
+  if ( success ) {
+    bus.route.l_src = source.pin_shapes[0].l;
+    bus.route.sl_src = source.pin_shapes[0].sl;
+    bus.route.l_tar = target.pin_shapes[0].l;
+    bus.route.sl_tar = target.pin_shapes[0].sl;
+    success = backtrack(bus.route, target_node, source, target,
+      bus.bus_widths);
+  }
   // Add wires as obstacles to the grid map
   if ( success ) grid.add_obstacles(bus.route.wires);
   /* Unmark all the source/target nodes */
@@ -385,21 +398,171 @@ bool Router::backtrack( BusRoute& route, Node node, const Pinout& source,
     }
     for ( auto n = 0; n < nbits; ++n ) {
       Rectangle wire;
+      // std::cout << grid.layers.size()*3 + (uint32_t)path.l << " ";
       wire.l = path.l;
       wire.sl = path.sl;
       if ( layer.direction ) {
+        // std::cout << path.i_coor[n].low << " ";
+        // std::cout << path.t_coor[n] - half_width << " ";
+        // std::cout << path.i_coor[n].upp << " ";
+        // std::cout << path.t_coor[n] + half_width << " ";
         wire.lower.coor[0] = path.i_coor[n].low;
         wire.lower.coor[1] = path.t_coor[n] - half_width;
         wire.upper.coor[0] = path.i_coor[n].upp;
         wire.upper.coor[1] = path.t_coor[n] + half_width;
       } else {
+        // std::cout << path.t_coor[n] - half_width << " ";
+        // std::cout << path.i_coor[n].low << " ";
+        // std::cout << path.t_coor[n] + half_width << " ";
+        // std::cout << path.i_coor[n].upp << " ";
         wire.lower.coor[1] = path.t_coor[n] - half_width;
         wire.lower.coor[0] = path.i_coor[n].low;
         wire.upper.coor[1] = path.t_coor[n] + half_width;
         wire.upper.coor[0] = path.i_coor[n].upp;
       }
+      // std::cout << std::endl;
       route.wires.push_back(wire);
     }
   }
   return 1;
+}
+
+void Router::output_route( const Bus& bus )
+{
+  const auto& route = bus.route;
+  const auto& nbits = bus.bits.size();
+  output << "BUS " << bus.name << "\n";
+  for ( auto n = 0; n < nbits; ++n ) {
+    output << "BIT " << bus.bits[n].name << "\n";
+    std::string path_string;
+    uint32_t path_count = 0;
+    for ( auto p = 0; p < route.paths.size(); ++p ) {
+      const auto& path = route.paths[p];
+      const auto& dir = grid.layers[path.l].direction;
+      const auto& bit_order = path.bit_order;
+      const auto& heading = path.heading;
+      const auto& t_coor = path.t_coor[bit_order ? n : (nbits-n-1)];
+      const auto& i_coor = path.i_coor[bit_order ? n : (nbits-n-1)];
+      const auto& i_start = heading ? i_coor.low : i_coor.upp;
+      const auto& i_end = heading ? i_coor.upp : i_coor.low;
+      const auto x_start = dir ? i_start : t_coor;
+      const auto y_start = dir ? t_coor : i_start;
+      const auto x_end = dir ? i_end : t_coor;
+      const auto y_end = dir ? t_coor : i_end;
+      const auto x_low = dir ? i_coor.low : t_coor;
+      const auto y_low = dir ? t_coor : i_coor.low;
+      const auto x_upp = dir ? i_coor.upp : t_coor;
+      const auto y_upp = dir ? t_coor : i_coor.upp;
+      if ( p == 0 ) {
+        const auto from_l = std::min(path.l, route.l_src);
+        const auto to_l = std::max(path.l, route.l_src);
+        const auto from_sl = ( path.l < route.l_src ) ? path.sl : route.sl_src;
+        const auto to_sl = ( path.l < route.l_src ) ? route.sl_src : path.sl;
+        if ( from_l == to_l ) {
+          for ( auto sl = from_sl; sl < to_sl; ++sl ) {
+            const auto& layer_name = grid.layers[to_l].sublayers[sl].name;
+            path_string += layer_name + " ";
+            path_string += coor_string(x_start, y_start);
+            path_string += "\n";
+            path_count++;
+          }
+        } else {
+          for ( auto sl = from_sl; sl < grid.layers[from_l].sublayers.size();
+            ++sl ) {
+            const auto& layer_name = grid.layers[from_l].sublayers[sl].name;
+            path_string += layer_name + " ";
+            path_string += coor_string(x_start, y_start);
+            path_string += "\n";
+            path_count++;
+          }
+          for ( auto sl = 0; sl < to_sl; ++sl ) {
+            const auto& layer_name = grid.layers[to_l].sublayers[sl].name;
+            path_string += layer_name + " ";
+            path_string += coor_string(x_start, y_start);
+            path_string += "\n";
+            path_count++;
+          }
+        }
+      } else {
+        const auto& path_pre = route.paths[p-1];
+        const auto from_l = std::min(path.l, path_pre.l);
+        const auto to_l = std::max(path.l, path_pre.l);
+        const auto from_sl = ( path.l < path_pre.l ) ? path.sl : path_pre.sl;
+        const auto to_sl = ( path.l < path_pre.l ) ? path_pre.sl : path.sl;
+        if ( from_l == to_l ) {
+          for ( auto sl = from_sl; sl < to_sl; ++sl ) {
+            const auto& layer_name = grid.layers[to_l].sublayers[sl].name;
+            path_string += layer_name + " ";
+            path_string += coor_string(x_start, y_start);
+            path_string += "\n";
+            path_count++;
+          }
+        } else {
+          for ( auto sl = from_sl; sl < grid.layers[from_l].sublayers.size();
+            ++sl ) {
+            const auto& layer_name = grid.layers[from_l].sublayers[sl].name;
+            path_string += layer_name + " ";
+            path_string += coor_string(x_start, y_start);
+            path_string += "\n";
+            path_count++;
+          }
+          for ( auto sl = 0; sl < to_sl; ++sl ) {
+            const auto& layer_name = grid.layers[to_l].sublayers[sl].name;
+            path_string += layer_name + " ";
+            path_string += coor_string(x_start, y_start);
+            path_string += "\n";
+            path_count++;
+          }
+        }
+      }
+      const auto& layer_name = grid.layers[path.l].sublayers[path.sl].name;
+      path_string += layer_name + " ";
+      path_string += coor_string(x_low, y_low);
+      path_string += " ";
+      path_string += coor_string(x_upp, y_upp);
+      path_string += "\n";
+      path_count++;
+      if ( p == route.paths.size()-1 ) {
+        const auto from_l = std::min(path.l, route.l_tar);
+        const auto to_l = std::max(path.l, route.l_tar);
+        const auto from_sl = ( path.l < route.l_tar ) ? path.sl : route.sl_tar;
+        const auto to_sl = ( path.l < route.l_tar ) ? route.sl_tar : path.sl;
+        if ( from_l == to_l ) {
+          for ( auto sl = from_sl; sl < to_sl; ++sl ) {
+            const auto& layer_name = grid.layers[to_l].sublayers[sl].name;
+            path_string += layer_name + " ";
+            path_string += coor_string(x_end, y_end);
+            path_string += "\n";
+            path_count++;
+          }
+        } else {
+          for ( auto sl = from_sl; sl < grid.layers[from_l].sublayers.size();
+            ++sl ) {
+            const auto& layer_name = grid.layers[from_l].sublayers[sl].name;
+            path_string += layer_name + " ";
+            path_string += coor_string(x_end, y_end);
+            path_string += "\n";
+            path_count++;
+          }
+          for ( auto sl = 0; sl < to_sl; ++sl ) {
+            const auto& layer_name = grid.layers[to_l].sublayers[sl].name;
+            path_string += layer_name + " ";
+            path_string += coor_string(x_end, y_end);
+            path_string += "\n";
+            path_count++;
+          }
+        }
+      }
+    }
+    output << "PATH " << path_count << "\n";
+    output << path_string;
+    output << "ENDPATH\n";
+    output << "ENDBIT\n";
+  }
+  output << "ENDBUS\n";
+}
+
+std::string Router::coor_string( const uint32_t& x, const uint32_t& y )
+{
+  return "(" + std::to_string(x) + " " + std::to_string(y) + ")";
 }
