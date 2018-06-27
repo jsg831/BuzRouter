@@ -19,20 +19,20 @@ struct Path
 {
   bool bit_order;
   bool heading;
-  uint8_t l;
-  uint8_t sl;
+  unsigned char l;
+  unsigned char sl;
   Range i_path;
   std::vector<Range> i_coor;
-  std::vector<uint32_t> t;
-  std::vector<uint32_t> t_coor;
+  std::vector<unsigned int> t;
+  std::vector<unsigned int> t_coor;
 };
 
 struct BusRoute
 {
-  uint8_t l_src;
-  uint8_t sl_src;
-  uint8_t l_tar;
-  uint8_t sl_tar;
+  unsigned char l_src;
+  unsigned char sl_src;
+  unsigned char l_tar;
+  unsigned char sl_tar;
   std::vector<Path> paths;
   std::vector<Rectangle> wires;
 };
@@ -41,10 +41,10 @@ struct Bus
 {
 public:
   /* Variables */
-  bool valid = 1;
+  bool valid;
   std::string name;
   std::vector<Bit> bits;
-  std::vector< std::vector<uint32_t> > bus_widths;
+  std::vector< std::vector<unsigned int> > bus_widths;
   std::vector<Pinout> pinouts;
   BusRoute route;
   /* Functions */

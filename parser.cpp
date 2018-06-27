@@ -2,6 +2,8 @@
 
 void Parser::parse( std::string filename, Router& router )
 {
+  l = 0;
+  sl = 0;
   input_file.open( filename );
   std::string line;
   std::string word;
@@ -11,10 +13,10 @@ void Parser::parse( std::string filename, Router& router )
   bool buses_flag = 0;
   bool bit_flag = 0;
   bool width_flag = 0;
-  uint32_t layer_index = 0;
-  uint32_t sublayer_index = 0;
-  uint32_t bus_flag = 0;
-  uint32_t bus_layer_width = 0;
+  unsigned int layer_index = 0;
+  unsigned int sublayer_index = 0;
+  unsigned int bus_flag = 0;
+  unsigned int bus_layer_width = 0;
   if ( input_file.fail() ) return;
   while ( !input_file.eof() ) {
     getline( input_file, line );
@@ -88,7 +90,7 @@ void Parser::parse( std::string filename, Router& router )
           layer_width.back().resize(layer_width.back().size() + 1);
         }
       }
-      layer_table.insert(std::pair< std::string, std::pair<uint32_t,uint32_t> >
+      layer_table.insert(std::pair< std::string, std::pair<unsigned int,unsigned int> >
         ( sublayer.name, std::make_pair( layer_index, sublayer_index ) ) );
     } else if ( track_flag ) {
       router.tracks.resize( router.tracks.size()+1 );
@@ -151,7 +153,7 @@ void Parser::parse( std::string filename, Router& router )
     } else if ( width_flag ) {
       Bus &bus = router.buses.back();
       bus.bus_widths.resize(layer_width.size());
-      for ( auto n = 0; n < layer_width.size(); ++n ){
+      for ( unsigned int n = 0; n < layer_width.size(); ++n ){
         bus.bus_widths[n].resize(layer_width[n].size());
       }
       bus.bus_widths[l][sl] = ( convert(word.substr( 0, word.size()) ));
@@ -173,7 +175,7 @@ void Parser::parse( std::string filename, Router& router )
       Bit& bit = router.buses.back().bits.back();
       bit.pin_shapes.resize(bit.pin_shapes.size() + 1);
       Rectangle &pin = bit.pin_shapes.back();
-      std::pair<uint8_t, uint8_t> layer_pair;
+      std::pair<unsigned char, unsigned char> layer_pair;
       layer_pair = layer_table[word];  // use layer name to search index
       pin.l = layer_pair.first;
       pin.sl = layer_pair.second;
@@ -189,7 +191,7 @@ void Parser::parse( std::string filename, Router& router )
   }
 }
 
-uint32_t Parser::convert( const std::string& str )
+unsigned int Parser::convert( const std::string& str )
 {
   return std::strtoul( str.c_str(), nullptr, 10 );
 }
