@@ -21,13 +21,16 @@ struct Path
   bool heading;
   uint8_t l;
   uint8_t sl;
-  Range i;
+  Range i_path;
+  std::vector<Range> i_coor;
   std::vector<uint32_t> t;
+  std::vector<uint32_t> t_coor;
 };
 
 struct BusRoute
 {
   std::vector<Path> paths;
+  std::vector<Rectangle> wires;
 };
 
 struct Bus
@@ -39,6 +42,7 @@ public:
   std::vector<Bit> bits;
   std::vector< std::vector<uint32_t> > bus_widths;
   std::vector<Pinout> pinouts;
+  BusRoute route;
   /* Functions */
   void initialize( void );
 };

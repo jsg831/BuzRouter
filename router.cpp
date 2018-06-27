@@ -26,7 +26,7 @@ void Router::initialize( void )
 
 void Router::route_all( void )
 {
-  for ( const auto& bus : buses ) {
+  for ( auto& bus : buses ) {
     if ( !bus.valid ) continue;
     grid.update_routable_range( bus.bus_widths );
     if ( route( bus, 0, 1 ) ) std::cout << "Successful!" << std::endl;
@@ -34,7 +34,7 @@ void Router::route_all( void )
   }
 }
 
-bool Router::route( const Bus& bus, uint32_t s, uint32_t t )
+bool Router::route( Bus& bus, uint32_t s, uint32_t t )
 {
   bool success = 0;
   const auto& source = bus.pinouts[s];
@@ -69,13 +69,8 @@ bool Router::route( const Bus& bus, uint32_t s, uint32_t t )
         if ( rn_tar.node.l == rn.node.l && rn_tar.node.sl == rn.node.sl
           && rn_tar.heading.cur == !rn.heading.cur ) rn.t_cur = rn_tar.t_cur;
       }
-      if ( !rn.via_free ) {
-        if ( !grid.check_vias(rn, rn.bit_order.pre == target.bit_order) )
-          continue;
-      } else {
-        if ( !(grid.check_vias(rn, 0) || grid.check_vias(rn, 1)) )
-          continue;
-      }
+      if ( !(grid.check_vias(rn, 0) && grid.check_vias(rn, 1)) )
+        continue;
       success = 1;
       target_node = rn.node;
       break;
@@ -109,7 +104,6 @@ bool Router::route( const Bus& bus, uint32_t s, uint32_t t )
     if ( !rn.locked && rn.node.i == rn.i_cur ) continue;
     rn_q.locked = 0;
     rn_q.cost = rn.cost + VIA_COST;
-    rn_q.bit_order.pre = rn.bit_order.cur;
     rn_q.heading.pre = rn.heading.cur;
     rn_q.l_pre = rn.node.l;
     rn_q.sl_pre = rn.node.sl;
@@ -184,8 +178,10 @@ bool Router::route( const Bus& bus, uint32_t s, uint32_t t )
       }
     }
   }
-  BusRoute route;
-  if ( success ) backtrack(route, target_node, source, target, bus.bus_widths);
+  if ( success ) success = backtrack(bus.route, target_node, source, target,
+    bus.bus_widths);
+  // Add wires as obstacles to the grid map
+  if ( success ) grid.add_obstacles(bus.route.wires);
   /* Unmark all the source/target nodes */
   for ( const auto& rn : source.nodes ) {
     set_source( rn, 0 );
@@ -211,13 +207,7 @@ bool Router::check_node( RoutingNode& rn, const uint8_t nbits,
     if ( rn.locked ) return 0;
     if ( !grid.update_tracks(rn.node, nbits, bw, rn.i_cur, rn.heading.pre,
       rn.t_cur) ) return 0;
-    if ( !rn.via_free ) {
-      bool same_order = grid.check_vias(rn, 1);
-      bool reverse_order = grid.check_vias(rn, 0);
-      if ( same_order && reverse_order ) rn.via_free = 1;
-      else if ( !(same_order || reverse_order) ) return 0;
-    }
-    if ( !(grid.check_vias(rn, 0) || grid.check_vias(rn, 1)) ) return 0;
+    if ( !(grid.check_vias(rn, 0) && grid.check_vias(rn, 1)) ) return 0;
     rn.range = grid.routable_range( rn.node, rn.t_cur, rn.heading.cur );
   }
   grid_node.cost = rn.cost;
@@ -241,7 +231,7 @@ void Router::set_target( const RoutingNode& rn, bool bit )
   grid_nodes[rn.t_cur.back()][rn.node.i].set_bit( GridNode::tar_low, bit );
 }
 
-void Router::backtrack( BusRoute& route, Node node, const Pinout& source,
+bool Router::backtrack( BusRoute& route, Node node, const Pinout& source,
   const Pinout& target, const std::vector< std::vector<uint32_t> >& bw )
 {
   bool src_reached = 0;
@@ -298,69 +288,55 @@ void Router::backtrack( BusRoute& route, Node node, const Pinout& source,
   std::reverse(nodes.begin(), nodes.end());
   // Find the original track sets
   RoutingNode rn;
-  uint32_t free_path = -1;
-  bool bit_order_pre;
   route.paths.clear();
   for ( uint32_t n = 0; n < nodes.size(); ) {
     Path path;
     path.l = nodes[n].l;
     path.sl = nodes[n].sl;
-    rn.l_pre = rn.node.l;
-    rn.sl_pre = rn.node.sl;
     rn.node = nodes[n];
     if ( n == 0 ) {
       path.bit_order = source.bit_order;
-      bit_order_pre = source.bit_order;
       rn.heading.cur = heading_src;
       rn.t_cur = t_src;
     } else if ( n >= nodes.size()-2 ) {
       path.bit_order = target.bit_order;
       rn.heading.cur = !heading_tar;
       rn.t_cur = t_tar;
-      bool same_order = grid.check_vias(rn, 1);
-      // If the bit order does not match the target pinout, reverse all bit
-      // orders from the last free path
-      if ( same_order ? (path.bit_order != bit_order_pre)
-        : (path.bit_order == bit_order_pre) ) {
-        for ( auto p = free_path; p < route.paths.size()-1; ++p ) {
-          route.paths[p].bit_order = !route.paths[p].bit_order;
-        }
-      }
     } else {
+      path.bit_order = 1;
       rn.heading.cur = ( nodes[n+1].i > nodes[n].i );
       grid.update_tracks(rn.node, nbits, bw[rn.node.l][rn.node.sl],
         nodes[n+1].i, rn.heading.pre, rn.t_cur );
-      bool same_order = grid.check_vias(rn, 1);
-      bool reverse_order = grid.check_vias(rn, 0);
-      if ( same_order && reverse_order ) {
-        free_path = route.paths.size() - 1;
-      }
-      path.bit_order = same_order ? bit_order_pre : !bit_order_pre;
-      bit_order_pre = path.bit_order;
     }
     path.heading = rn.heading.cur;
     path.t = rn.t_cur;
     if ( n != nodes.size()-1 && nodes[n].l == nodes[n+1].l ) {
-      path.i = (nodes[n].i < nodes[n+1].i) ?
-        Range(nodes[n].i, nodes[n+1].i) : Range(nodes[n+1].i, nodes[n].i);
+      path.i_path = path.heading ? Range(nodes[n].i, nodes[n+1].i)
+        : Range(nodes[n+1].i, nodes[n].i);
       n += 2;
     } else {
-      path.i = Range(nodes[n].i, nodes[n].i);
+      path.i_path = Range(nodes[n].i, nodes[n].i);
       n += 1;
     }
     rn.heading.pre = rn.heading.cur;
     rn.t_pre = rn.t_cur;
+    rn.l_pre = rn.node.l;
+    rn.sl_pre = rn.node.sl;
     route.paths.push_back(path);
   }
-  std::vector<uint32_t> i_start;
-  std::vector<uint32_t> i_end;
-  i_start.resize(nbits);
-  i_end.resize(nbits);
   for ( auto p = 0; p < route.paths.size(); ++p ) {
-    const auto& path = route.paths[p];
+    auto& path = route.paths[p];
     const auto& layer = grid.layers[path.l];
     const auto& sublayer = layer.sublayers[path.sl];
+    const auto& dir = layer.direction;
     const auto half_width = bw[path.l][path.sl] >> 1;
+    // Convert track indices to coordinates
+    path.t_coor.resize(nbits);
+    for ( auto n = 0; n < nbits; ++n ) {
+      path.t_coor[n] = sublayer.sltra_coor[path.t[n]];
+    }
+    // Find intersection coordinates
+    path.i_coor.resize(nbits);
     if ( p != 0 ) {
       const auto& path_pre = route.paths[p-1];
       const auto& layer_pre = grid.layers[path_pre.l];
@@ -368,14 +344,21 @@ void Router::backtrack( BusRoute& route, Node node, const Pinout& source,
       for ( auto n = 0; n < nbits; ++n ) {
         uint32_t tp = n;
         if ( path.bit_order != path_pre.bit_order ) tp = nbits-1-n;
+        auto& i_start = path.heading ? path.i_coor[n].low : path.i_coor[n].upp;
         if ( path.l > path_pre.l )
-          i_start[n] = sublayer_pre.sltra_ulint[path_pre.t[tp]];
+          i_start = sublayer_pre.sltra_ulint[path_pre.t[tp]];
         else
-          i_start[n] = sublayer_pre.sltra_llint[path_pre.t[tp]];
+          i_start = sublayer_pre.sltra_llint[path_pre.t[tp]];
+        i_start = layer.lint_coor[i_start];
       }
     } else {
-      i_start.clear();
-      i_start.resize(nbits, path.heading ? path.i.low : path.i.upp );
+      for ( auto n = 0; n < nbits; ++n ) {
+        auto& i_end = path.heading ? path.i_coor[n].low : path.i_coor[n].upp;
+        if ( path.heading )
+          i_end = source.pin_shapes[0].upper.coor[!dir];
+        else
+          i_end = source.pin_shapes[0].lower.coor[!dir];
+      }
     }
     if ( p != route.paths.size()-1 ) {
       const auto& path_next = route.paths[p+1];
@@ -384,33 +367,39 @@ void Router::backtrack( BusRoute& route, Node node, const Pinout& source,
       for ( auto n = 0; n < nbits; ++n ) {
         uint32_t tn = n;
         if ( path.bit_order != path_next.bit_order ) tn = nbits-1-n;
+        auto& i_end = path.heading ? path.i_coor[n].upp : path.i_coor[n].low;
         if ( path.l > path_next.l )
-          i_end[n] = sublayer_next.sltra_ulint[path_next.t[tn]];
+          i_end = sublayer_next.sltra_ulint[path_next.t[tn]];
         else
-          i_end[n] = sublayer_next.sltra_llint[path_next.t[tn]];
+          i_end = sublayer_next.sltra_llint[path_next.t[tn]];
+        i_end = layer.lint_coor[i_end];
       }
     } else {
-      i_end.clear();
-      i_end.resize(nbits, path.heading ? path.i.upp : path.i.low );
+      for ( auto n = 0; n < nbits; ++n ) {
+        auto& i_end = path.heading ? path.i_coor[n].upp : path.i_coor[n].low;
+        if ( path.heading )
+          i_end = target.pin_shapes[0].lower.coor[!dir];
+        else
+          i_end = target.pin_shapes[0].upper.coor[!dir];
+      }
     }
-    std::vector<Rectangle> wires;
     for ( auto n = 0; n < nbits; ++n ) {
       Rectangle wire;
       wire.l = path.l;
       wire.sl = path.sl;
       if ( layer.direction ) {
-        wire.lower.coor[0] = layer.lint_coor[std::min(i_start[n], i_end[n])];
-        wire.lower.coor[1] = sublayer.sltra_coor[path.t[n]] - half_width;
-        wire.upper.coor[0] = layer.lint_coor[std::max(i_start[n], i_end[n])];
-        wire.upper.coor[1] = sublayer.sltra_coor[path.t[n]] + half_width;
+        wire.lower.coor[0] = path.i_coor[n].low;
+        wire.lower.coor[1] = path.t_coor[n] - half_width;
+        wire.upper.coor[0] = path.i_coor[n].upp;
+        wire.upper.coor[1] = path.t_coor[n] + half_width;
       } else {
-        wire.lower.coor[0] = sublayer.sltra_coor[path.t[n]] - half_width;
-        wire.lower.coor[1] = layer.lint_coor[std::min(i_start[n], i_end[n])];
-        wire.upper.coor[0] = sublayer.sltra_coor[path.t[n]] + half_width;
-        wire.upper.coor[1] = layer.lint_coor[std::max(i_start[n], i_end[n])];
+        wire.lower.coor[1] = path.t_coor[n] - half_width;
+        wire.lower.coor[0] = path.i_coor[n].low;
+        wire.upper.coor[1] = path.t_coor[n] + half_width;
+        wire.upper.coor[0] = path.i_coor[n].upp;
       }
-      wires.push_back(wire);
+      route.wires.push_back(wire);
     }
-    grid.add_obstacles( wires );
   }
+  return 1;
 }

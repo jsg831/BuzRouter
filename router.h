@@ -37,11 +37,11 @@ public:
   void initialize( void );
   void route_all( void );
 private:
-  bool route( const Bus& bus, uint32_t s, uint32_t t );
+  bool route( Bus& bus, uint32_t s, uint32_t t );
   bool check_node( RoutingNode& rn, const uint8_t nbits, const uint16_t bw );
   void set_source( const RoutingNode& rn, bool bit );
   void set_target( const RoutingNode& rn, bool bit );
-  void backtrack( BusRoute& route, Node node, const Pinout& source,
+  bool backtrack( BusRoute& route, Node node, const Pinout& source,
     const Pinout& target, const std::vector< std::vector<uint32_t> >& bw );
 };
 

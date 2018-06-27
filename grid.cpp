@@ -145,8 +145,8 @@ void Grid::add_obstacles( const std::vector<Rectangle>& obstacles )
     const auto coor_tra_low = safe_sub( obstacle.lower.coor[dir], spacing );
     const auto coor_tra_upp = safe_add( obstacle.upper.coor[dir], spacing );
     // No line-end rules.
-    const auto coor_int_low = safe_add( obstacle.lower.coor[!dir], 1 );
-    const auto coor_int_upp = safe_sub( obstacle.upper.coor[!dir], 1 );
+    const auto coor_int_low = safe_add( obstacle.lower.coor[!dir], 0 );
+    const auto coor_int_upp = safe_sub( obstacle.upper.coor[!dir], 0 );
 
     // Find the bound of indices where the grid nodes intersect with the
     // obstacle.
@@ -154,6 +154,8 @@ void Grid::add_obstacles( const std::vector<Rectangle>& obstacles )
     auto to_tra = find_lower_bound( coor_tra_upp, sublayer.sltra_coor );
     auto from_int = find_upper_bound( coor_int_low, layer.lint_coor );
     auto to_int = find_lower_bound( coor_int_upp, layer.lint_coor );
+
+    if ( from_int == -1 || to_int == -1 ) continue;
 
     // Extend the bound by OBS_EXT
     auto from_tra_ov = safe_sub( from_tra, OBS_EXT );
@@ -245,8 +247,6 @@ bool Grid::generate_pinout_nodes( Pinout& pinout, uint8_t l, uint8_t sl,
   const auto& pin_shapes = pinout.pin_shapes;
   RoutingNode rn;
   rn.locked = 1;
-  rn.via_free = 0;
-  rn.bit_order.cur = pinout.bit_order;
   rn.heading.cur = heading;
   rn.node.l = l;
   rn.node.sl = sl;
@@ -343,7 +343,6 @@ bool Grid::check_vias( RoutingNode& rn, bool via_type )
       !via_cur.obstructed_upp() : !via_cur.obstructed_low();
     if ( !success ) return 0;
   }
-  rn.bit_order.cur = via_type ? rn.bit_order.pre : !rn.bit_order.pre;
   return success;
 }
 
