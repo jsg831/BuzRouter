@@ -218,6 +218,7 @@ void Grid::update_routable_range(
         for ( uint32_t i = 0; i < track.size(); ++i ) {
           auto& grid_node = track[i];
           grid_node.cost = -1;
+          
           bool routable = ( grid_node.width_cur >= bus_width );
           // Update the bound of current intersection
           if ( routable && grid_node.width_low >= bus_width ) end = i;

@@ -45,9 +45,14 @@ private:
   void set_source( const RoutingNode& rn, bool bit );
   void set_target( const RoutingNode& rn, bool bit );
   bool backtrack( BusRoute& route, Node node, const Pinout& source,
-    const Pinout& target, const std::vector< std::vector<uint32_t> >& bw );
+    const Pinout& target, const std::vector< std::vector<uint32_t> >& bw,
+    std::vector<Pinout> &steiner_tars);
   void output_route( const Bus& bus );
   std::string coor_string( const uint32_t& x, const uint32_t& y );
+  void generate_path( BusRoute& route, const Pinout& source, const Pinout& target,
+     const std::vector< std::vector<uint32_t> >& bw );
+  void path2wire( Bus& bus, const std::vector< std::vector<uint32_t> >& bw );
+  bool route_pin2net( Bus& bus, uint32_t s);
 };
 
 #endif
