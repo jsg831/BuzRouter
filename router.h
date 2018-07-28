@@ -53,6 +53,7 @@ private:
      const std::vector< std::vector<uint32_t> >& bw );
   void path2wire( Bus& bus, const std::vector< std::vector<uint32_t> >& bw );
   bool route_pin2net( Bus& bus, uint32_t s);
+  void reduce_overlap_path( Bus &bus);
 };
 
 #endif
