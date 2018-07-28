@@ -33,8 +33,9 @@ struct BusRoute
   uint8_t sl_src;
   uint8_t l_tar;
   uint8_t sl_tar;
-  uint32_t path_cur_index;
+  //uint32_t path_cur_index;
   bool connected;
+  bool overlap;
   std::vector<Path> paths;
   std::vector<Rectangle> wires;
 };
