@@ -34,6 +34,7 @@ struct BusRoute
   uint8_t l_tar;
   uint8_t sl_tar;
   uint32_t path_cur_index;
+  bool connected;
   std::vector<Path> paths;
   std::vector<Rectangle> wires;
 };
@@ -48,8 +49,7 @@ public:
   std::vector< std::vector<uint32_t> > bus_widths;
   std::vector<Pinout> pinouts;
   std::vector<Pinout> steiner_tars;
-
-  BusRoute route;
+  std::vector<BusRoute> routes;
   /* Functions */
   void initialize( void );
 };
