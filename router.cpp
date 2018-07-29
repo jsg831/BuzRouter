@@ -310,9 +310,9 @@ bool Router::route_pin2net( Bus& bus, uint32_t s)
           //rec.upper.coor[layer.direction] = rec.lower.coor[!layer.direction] + bus.bus_widths[rec.l][rec.sl];
 
           //copy the info of target node to generate correct pinout
-          for (uint8_t n = 0; n < rn.t_cur.size(); n ++) {
+          for (uint8_t n = 0; n < bus.bits.size(); n ++) {
             pinout_tar.pin_shapes[n].lower.coor[!layer.direction] = layer.lint_coor[rn.node.i] - bus.bus_widths[rec.l][rec.sl] / 2;
-            pinout_tar.pin_shapes[n].upper.coor[!layer.direction] = rec.lower.coor[layer.direction] + bus.bus_widths[rec.l][rec.sl];
+            pinout_tar.pin_shapes[n].upper.coor[!layer.direction] = pinout_tar.pin_shapes[n].lower.coor[!layer.direction] + bus.bus_widths[rec.l][rec.sl];
           }
           rn.t_cur = rn_tar.t_cur;
           target = pinout_tar;
