@@ -13,6 +13,8 @@ int main( int argc, char const *argv[] )
   Parser parser;
 
   parser.parse( input_filename, router );
+  parser.pinshapes_check(router);
+
   router.initialize( output_filename );
   router.route_all();
 

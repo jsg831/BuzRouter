@@ -397,6 +397,7 @@ void Grid::convert_index( std::vector<uint32_t>& conv_vec,
       conv_vec[index] = subindex;
       ++subindex;
     }
+    if (subindex == sub_vec.size()) break;
   }
 }
 
