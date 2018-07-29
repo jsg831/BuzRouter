@@ -476,6 +476,14 @@ void Router::set_source( const RoutingNode& rn, bool bit )
   grid_nodes[rn.t_cur.front()][rn.node.i].set_bit( GridNode::src, bit );
 }
 
+/*void Router::set_psudo_blokage( const RoutingNode& rn, bool bit )
+{
+  auto& layer = grid.layers[rn.node.l];
+  auto& sublayer = layer.sublayers[rn.node.sl];
+  auto& grid_nodes = sublayer.grid_nodes;
+  grid_nodes[rn.t_cur.front()][rn.node.i].set_bit( GridNode::src, bit );
+}*/
+
 void Router::set_target( const RoutingNode& rn, bool bit )
 {
   auto& layer = grid.layers[rn.node.l];
@@ -577,11 +585,13 @@ bool Router::backtrack( BusRoute& route, Node node, const Pinout& source,
     //set all node between node.i and i_cur to tar_upp/low
     uint32_t low_i = (rn.i_cur < rn.node.i) ? rn.i_cur : rn.node.i;
     uint32_t upp_i = (rn.i_cur > rn.node.i) ? rn.i_cur : rn.node.i;
-    for( uint32_t n = low_i; n <= upp_i; n ++) {
+    /*for( uint32_t n = low_i; n <= upp_i; n ++) {
       if (low_i == upp_i) break;
       grid_nodes[rn.t_cur.front()][n].set_bit( GridNode::tar_upp, 1 );
       grid_nodes[rn.t_cur.back()][n].set_bit( GridNode::tar_low, 1 );
-    }
+    }*/
+    grid_nodes[rn.t_cur.front()][rn.node.i].set_bit( GridNode::tar_upp, 1 );
+    grid_nodes[rn.t_cur.back()][rn.node.i].set_bit( GridNode::tar_low, 1 );
 
     steiner_tar.nodes.push_back(rn);
     // add all pinshape to pinout_target
@@ -628,6 +638,7 @@ void Router::generate_path( BusRoute& route, const Pinout& source,
     const auto& sublayer = layer.sublayers[path.sl];
     const auto& dir = layer.direction;
     const auto half_width = bw[path.l][path.sl] >> 1;
+    path.overlap = 0;
     // Convert track indices to coordinates
     path.t_coor.resize(nbits);
     for ( auto n = 0; n < nbits; ++n ) {
@@ -731,26 +742,50 @@ void Router::path2wire( Bus& bus, const std::vector< std::vector<uint32_t> >& bw
 void Router::reduce_overlap_path( Bus &bus )
 {
   for (uint32_t n = 1; n < bus.routes.size(); n ++) {
-    auto path_tail = bus.routes[n].paths.back();
+    auto& path_tail = bus.routes[n].paths.back();
     // find overlap path in pre tree
     for (uint32_t m = 0; m < n; m ++) {
       for ( auto& overlap_path : bus.routes[m].paths) {
         if ( path_tail.l == overlap_path.l && path_tail.sl == overlap_path.sl &&
           path_tail.t == overlap_path.t) {
           // update overlap path in main path
+          bool modify = 0;
+          Path branch;
+          branch = overlap_path;
           for ( auto c = 0; c < bus.bits.size(); c ++ ) {
             auto& overlap_i_coor = overlap_path.i_coor[c];
-            if ( overlap_i_coor.low > path_tail.i_coor[c].low )
-              overlap_i_coor.low = path_tail.i_coor[c].low;
-            if ( overlap_i_coor.upp < path_tail.i_coor[c].upp )
-              overlap_i_coor.upp = path_tail.i_coor[c].upp;
+
+
+            auto& path_tail_min = (path_tail.i_coor[c].low < path_tail.i_coor[c].upp)
+              ? path_tail.i_coor[c].low : path_tail.i_coor[c].upp;
+            auto& path_tail_max = (path_tail.i_coor[c].low > path_tail.i_coor[c].upp)
+              ? path_tail.i_coor[c].low : path_tail.i_coor[c].upp;
+            auto& branch_min = (branch.i_coor[c].low < branch.i_coor[c].upp)
+              ? branch.i_coor[c].low : branch.i_coor[c].upp;
+            auto& branch_max = (branch.i_coor[c].low > branch.i_coor[c].upp)
+              ? branch.i_coor[c].low : branch.i_coor[c].upp;
+
+            if ( branch_min > path_tail_min ){
+              branch_min = path_tail_min;
+              std::cout << "overlap_low\n";
+              modify = 1;
+            }
+            if ( branch_max < path_tail_max ){
+              branch_max = path_tail_max;
+              std::cout << "overlap_upp\n";
+              modify = 1;
+            }
           }
-          bus.routes[n].overlap = 1;
-          std::cout << "overlap\n";
-          break;
+          if ( modify ) {
+            path_tail.overlap = 1;
+            overlap_path.overlap = 1;
+            bus.main_branchs.push_back(branch);
+            std::cout << "overlap\n";
+            break;
+          }
         }
       }
-      if (bus.routes[n].overlap)
+      if (path_tail.overlap)
         break;
     }
   }
@@ -845,7 +880,7 @@ void Router::output_route( const Bus& bus )
             }
           }
         }
-        if ( !(p == route.paths.size()-1 && route.overlap) ) {
+        if ( !path.overlap ) {
           const auto& layer_name = grid.layers[path.l].sublayers[path.sl].name;
           path_string += layer_name + " ";
           path_string += coor_string(x_low, y_low);
@@ -887,6 +922,24 @@ void Router::output_route( const Bus& bus )
           }
         }
       }
+    }
+    for (uint8_t p = 0; p < bus.main_branchs.size(); p ++) {
+      const auto& path = bus.main_branchs[p];
+      const auto& layer_name = grid.layers[path.l].sublayers[path.sl].name;
+      const auto& dir = grid.layers[path.l].direction;
+      const auto& bit_order = path.bit_order;
+      const auto& t_coor = path.t_coor[bit_order ? n : (nbits-n-1)];
+      const auto& i_coor = path.i_coor[bit_order ? n : (nbits-n-1)];
+      const auto x_low = dir ? i_coor.low : t_coor;
+      const auto y_low = dir ? t_coor : i_coor.low;
+      const auto x_upp = dir ? i_coor.upp : t_coor;
+      const auto y_upp = dir ? t_coor : i_coor.upp;
+      path_string += layer_name + " ";
+      path_string += coor_string(x_low, y_low);
+      path_string += " ";
+      path_string += coor_string(x_upp, y_upp);
+      path_string += "\n";
+      path_count++;
     }
     output << "PATH " << path_count << "\n";
     output << path_string;

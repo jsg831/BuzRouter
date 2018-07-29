@@ -19,6 +19,7 @@ struct Path
 {
   bool bit_order;
   bool heading;
+  bool overlap;
   uint8_t l;
   uint8_t sl;
   Range i_path;
@@ -50,6 +51,7 @@ public:
   std::vector<Pinout> pinouts;
   std::vector<Pinout> steiner_tars;
   std::vector<BusRoute> routes;
+  std::vector<Path> main_branchs;
   /* Functions */
   void initialize( void );
 };
