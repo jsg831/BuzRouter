@@ -268,14 +268,12 @@ bool Grid::generate_pinout_nodes( Pinout& pinout, uint8_t l, uint8_t sl,
     const auto t_pin_low = pin_shape.lower.coor[direction];
     auto t_node = find_lower_bound(t_pin_upp, sublayer.sltra_coor);
     bool success = 0;
-    while (sublayer.sltra_coor[t_node] >= t_pin_low && t_node != -1) {
+    while ( sublayer.sltra_coor[t_node] >= t_pin_low && t_node != -1 ) {
       const auto& grid_node = grid_nodes[t_node][i_node];
-      if ((sublayer.sltra_coor[t_node] - grid_node.width_cur) < t_pin_upp && (sublayer.sltra_coor[t_node] + grid_node.width_cur) > t_pin_low) {
-        if (grid_node.routable()) {
-          rn.t_cur.push_back(t_node);
-          success = 1;
-          break;
-        }
+      if ( grid_node.routable() ) {
+        rn.t_cur.push_back( t_node );
+        success = 1;
+        break;
       }
       t_node--;
     }
@@ -399,7 +397,6 @@ void Grid::convert_index( std::vector<uint32_t>& conv_vec,
       conv_vec[index] = subindex;
       ++subindex;
     }
-    if (subindex == sub_vec.size()) break;
   }
 }
 

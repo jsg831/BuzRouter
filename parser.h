@@ -15,7 +15,6 @@ class Parser
 {
 public:
   void parse( std::string filename, Router& router);
-  void pinshapes_check( Router& router );
 private:
   std::ifstream input_file;
   std::stringstream ss;
