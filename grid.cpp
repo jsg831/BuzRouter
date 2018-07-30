@@ -145,8 +145,8 @@ void Grid::add_obstacles( const std::vector<Rectangle>& obstacles )
     const auto coor_tra_low = safe_sub( obstacle.lower.coor[dir], spacing );
     const auto coor_tra_upp = safe_add( obstacle.upper.coor[dir], spacing );
     // No line-end rules.
-    const auto coor_int_low = safe_add( obstacle.lower.coor[!dir], 0 );
-    const auto coor_int_upp = safe_sub( obstacle.upper.coor[!dir], 0 );
+    const auto coor_int_low = safe_sub( obstacle.lower.coor[!dir], spacing );
+    const auto coor_int_upp = safe_add( obstacle.upper.coor[!dir], spacing );
 
     // Find the bound of indices where the grid nodes intersect with the
     // obstacle.
@@ -218,7 +218,7 @@ void Grid::update_routable_range(
         for ( uint32_t i = 0; i < track.size(); ++i ) {
           auto& grid_node = track[i];
           grid_node.cost = -1;
-          
+
           bool routable = ( grid_node.width_cur >= bus_width );
           // Update the bound of current intersection
           if ( routable && grid_node.width_low >= bus_width ) end = i;
