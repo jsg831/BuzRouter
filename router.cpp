@@ -825,11 +825,21 @@ void Router::output_route( const Bus& bus )
           const auto to_l = std::max(path.l, route.l_src);
           const auto from_sl = ( path.l < route.l_src ) ? path.sl : route.sl_src;
           const auto to_sl = ( path.l < route.l_src ) ? route.sl_src : path.sl;
+          
+          const auto pin_side_upp = bus.pinouts[r == 0 ? r : r + 1].pin_shapes[path.bit_order ? n : (nbits - 1 - n)].upper.coor[dir];
+          const auto pin_side_low = bus.pinouts[r == 0 ? r : r + 1].pin_shapes[path.bit_order ? n : (nbits - 1 - n)].lower.coor[dir];
+          auto via_point = dir ? y_start : x_start;
+          via_point += ( bus.bus_widths[to_l][to_sl] / 2 );
+          while ( !(via_point <= pin_side_upp && via_point >= pin_side_low) )
+            via_point--;
+          const auto via_x = dir ? x_start : via_point;
+          const auto via_y = dir ? via_point : y_start;
+
           if ( from_l == to_l ) {
             for ( auto sl = from_sl; sl < to_sl; ++sl ) {
               const auto& layer_name = grid.layers[to_l].sublayers[sl].name;
               path_string += layer_name + " ";
-              path_string += coor_string(x_start, y_start);
+              path_string += coor_string(via_x, via_y);
               path_string += "\n";
               path_count++;
             }
@@ -838,14 +848,14 @@ void Router::output_route( const Bus& bus )
               ++sl ) {
               const auto& layer_name = grid.layers[from_l].sublayers[sl].name;
               path_string += layer_name + " ";
-              path_string += coor_string(x_start, y_start);
+              path_string += coor_string(via_x, via_y);
               path_string += "\n";
               path_count++;
             }
             for ( auto sl = 0; sl < to_sl; ++sl ) {
               const auto& layer_name = grid.layers[to_l].sublayers[sl].name;
               path_string += layer_name + " ";
-              path_string += coor_string(x_start, y_start);
+              path_string += coor_string(via_x, via_y);
               path_string += "\n";
               path_count++;
             }
@@ -897,11 +907,25 @@ void Router::output_route( const Bus& bus )
           const auto to_l = std::max(path.l, route.l_tar);
           const auto from_sl = ( path.l < route.l_tar ) ? path.sl : route.sl_tar;
           const auto to_sl = ( path.l < route.l_tar ) ? route.sl_tar : path.sl;
+          
+          auto via_x = x_end;
+          auto via_y = y_end;
+          if( r == 0){
+            const auto pin_side_upp = bus.pinouts[1].pin_shapes[path.bit_order ? n : nbits - 1 - n].upper.coor[dir];
+            const auto pin_side_low = bus.pinouts[1].pin_shapes[path.bit_order ? n : nbits - 1 - n].lower.coor[dir];
+            auto via_point = dir ? y_end : x_end;
+            via_point += ( bus.bus_widths[to_l][to_sl] / 2 );
+            while (!(via_point <= pin_side_upp && via_point >= pin_side_low))
+              via_point--;
+            via_x = dir ? x_end : via_point;
+            via_y = dir ? via_point : y_end;
+          }
+          
           if ( from_l == to_l ) {
             for ( auto sl = from_sl; sl < to_sl; ++sl ) {
               const auto& layer_name = grid.layers[to_l].sublayers[sl].name;
               path_string += layer_name + " ";
-              path_string += coor_string(x_end, y_end);
+              path_string += coor_string(via_x, via_y;
               path_string += "\n";
               path_count++;
             }
@@ -910,14 +934,14 @@ void Router::output_route( const Bus& bus )
               ++sl ) {
               const auto& layer_name = grid.layers[from_l].sublayers[sl].name;
               path_string += layer_name + " ";
-              path_string += coor_string(x_end, y_end);
+              path_string += coor_string(via_x, via_y);
               path_string += "\n";
               path_count++;
             }
             for ( auto sl = 0; sl < to_sl; ++sl ) {
               const auto& layer_name = grid.layers[to_l].sublayers[sl].name;
               path_string += layer_name + " ";
-              path_string += coor_string(x_end, y_end);
+              path_string += coor_string(via_x, via_y);
               path_string += "\n";
               path_count++;
             }

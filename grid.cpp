@@ -266,14 +266,20 @@ bool Grid::generate_pinout_nodes( Pinout& pinout, uint8_t l, uint8_t sl,
   for ( const auto& pin_shape : pin_shapes ) {
     const auto t_pin_upp = pin_shape.upper.coor[direction];
     const auto t_pin_low = pin_shape.lower.coor[direction];
-    auto t_node = find_lower_bound(t_pin_upp, sublayer.sltra_coor);
+    auto t_node = find_upper_bound(t_pin_upp, sublayer.sltra_coor);
     bool success = 0;
-    while ( sublayer.sltra_coor[t_node] >= t_pin_low && t_node != -1 ) {
+    while ( t_node != -1 ) {
       const auto& grid_node = grid_nodes[t_node][i_node];
-      if ( grid_node.routable() ) {
-        rn.t_cur.push_back( t_node );
-        success = 1;
-        break;
+      const auto& tra_coor = sublayer.sltra_coor[t_node];
+      const auto& tra_upp = tra_coor + ( grid_node.width_cur / 2 );
+      const auto& tra_low = tra_coor - ( grid_node.width_cur / 2 );
+      if ( tra_upp < t_pin_low ) break;
+      if ( (tra_upp <= t_pin_upp && tra_upp >= t_pin_low) || (tra_low <= t_pin_upp && tra_low >= t_pin_low) || (tra_upp >= t_pin_upp && tra_low <= t_pin_low) ) {
+        if ( grid_node.routable() ) {
+          rn.t_cur.push_back(t_node);
+          success = 1;
+          break;
+        }
       }
       t_node--;
     }
