@@ -193,3 +193,18 @@ uint32_t Parser::convert( const std::string& str )
 {
   return std::strtoul( str.c_str(), nullptr, 10 );
 }
+
+bool pin_compare( const Rectangle pin_shapes1, const Rectangle pin_shapes2 )
+{
+  return pin_shapes1.lower.coor[0] < pin_shapes2.lower.coor[0];
+}
+
+void Parser::pinshapes_check( Router& router )
+{
+  for ( auto& bus : router.buses ) {
+    bool first = 1;
+    for ( auto& bit : bus.bits ) {
+      std::sort( bit.pin_shapes.begin(), bit.pin_shapes.end(), pin_compare );
+    }
+  }
+}
