@@ -189,6 +189,7 @@ bool Router::route( Bus& bus, uint32_t s, uint32_t t )
       auto& layer_cur = grid.layers[rn.node.l-1];
       rn_q.node.l = rn.node.l - 1;
       for ( uint8_t sl = 0; sl < layer_cur.sublayers.size(); ++sl ) {
+        const auto& bw_low = bus.bus_widths[rn_q.node.l][sl];
         auto& sublayer_cur = layer_cur.sublayers[sl];
         rn_q.node.sl = sl;
         rn_q.node.t = sublayer_cur.ulint_sltra[rn.node.i];
@@ -197,7 +198,7 @@ bool Router::route( Bus& bus, uint32_t s, uint32_t t )
         rn_q.heading.cur = 0;
         rn_q.i_cur = sublayer.sltra_llint[rn.t_cur.back()];
         rn_q.node.i = rn_q.i_cur;
-        if ( check_node(rn_q, nbits, bw) ) {
+        if ( check_node(rn_q, nbits, bw_low) ) {
           auto& grid_node = sublayer_cur.grid_nodes[rn_q.node.t][rn_q.node.i];
           grid_node.from = rn.node.t;
           grid_node.set_bit(GridNode::dir, 1);
@@ -208,7 +209,7 @@ bool Router::route( Bus& bus, uint32_t s, uint32_t t )
         rn_q.heading.cur = 1;
         rn_q.i_cur = sublayer.sltra_llint[rn.t_cur.front()];
         rn_q.node.i = rn_q.i_cur;
-        if ( check_node(rn_q, nbits, bw) ) {
+        if ( check_node(rn_q, nbits, bw_low) ) {
           auto& grid_node = sublayer_cur.grid_nodes[rn_q.node.t][rn_q.node.i];
           grid_node.from = rn.node.t;
           grid_node.set_bit(GridNode::dir, 1);
@@ -222,6 +223,7 @@ bool Router::route( Bus& bus, uint32_t s, uint32_t t )
       auto& layer_cur = grid.layers[rn.node.l+1];
       rn_q.node.l = rn.node.l + 1;
       for ( uint8_t sl = 0; sl < layer_cur.sublayers.size(); ++sl ) {
+        const auto& bw_upp = bus.bus_widths[rn_q.node.l][sl];
         rn_q.node.sl = sl;
         auto& sublayer_cur = layer_cur.sublayers[sl];
         rn_q.node.t = sublayer_cur.llint_sltra[rn.node.i];
@@ -230,7 +232,7 @@ bool Router::route( Bus& bus, uint32_t s, uint32_t t )
         rn_q.heading.cur = 0;
         rn_q.i_cur = sublayer.sltra_ulint[rn.t_cur.back()];
         rn_q.node.i = rn_q.i_cur;
-        if ( check_node(rn_q, nbits, bw) ) {
+        if ( check_node(rn_q, nbits, bw_upp) ) {
           auto& grid_node = sublayer_cur.grid_nodes[rn_q.node.t][rn_q.node.i];
           grid_node.from = rn.node.t;
           grid_node.set_bit(GridNode::dir, 1);
@@ -241,7 +243,7 @@ bool Router::route( Bus& bus, uint32_t s, uint32_t t )
         rn_q.heading.cur = 1;
         rn_q.i_cur = sublayer.sltra_ulint[rn.t_cur.front()];
         rn_q.node.i = rn_q.i_cur;
-        if ( check_node(rn_q, nbits, bw) ) {
+        if ( check_node(rn_q, nbits, bw_upp) ) {
           auto& grid_node = sublayer_cur.grid_nodes[rn_q.node.t][rn_q.node.i];
           grid_node.from = rn.node.t;
           grid_node.set_bit(GridNode::dir, 1);
