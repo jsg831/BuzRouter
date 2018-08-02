@@ -925,7 +925,7 @@ void Router::output_route( const Bus& bus )
             for ( auto sl = from_sl; sl < to_sl; ++sl ) {
               const auto& layer_name = grid.layers[to_l].sublayers[sl].name;
               path_string += layer_name + " ";
-              path_string += coor_string(via_x, via_y;
+              path_string += coor_string(via_x, via_y);
               path_string += "\n";
               path_count++;
             }
