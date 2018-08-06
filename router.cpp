@@ -5,66 +5,79 @@ void Router::initialize( std::string& filename )
   output.open( filename );
   grid.make_grid( tracks );
   grid.add_obstacles( obstacles );
-  for ( auto& bus : buses ) {
+  for ( int b = 0; b < buses.size(); ++b ) {
+    Bus& bus = buses[b];
+    std::cout << "bus = " << bus.name << std::endl;
     bus.initialize();
     grid.update_routable_range( bus.bus_widths );
-    for ( auto& pinout : bus.pinouts ) {
+    for ( int p = 0; p < bus.pinouts.size(); ++p ) {
+      Pinout& pinout = bus.pinouts[p];
       RoutingNode rn;
-      const auto l_pin = pinout.pin_shapes[0].l;
-      for ( auto d = -1; d <= 1; ++d ) {
+      const unsigned char l_pin = pinout.pin_shapes[0].l;
+      for ( int d = -1; d <= 1; ++d ) {
         if ( l_pin == 0 && d == -1 ) continue;
         if ( l_pin == grid.layers.size() - 1 && d == 1 ) continue;
-        auto l = l_pin + d;
-        for ( auto sl = 0; sl < grid.layers[l].sublayers.size(); ++sl ) {
-          grid.generate_pinout_nodes( pinout, l, sl, 0 );
-          grid.generate_pinout_nodes( pinout, l, sl, 1 );
+        unsigned char l = l_pin + d;
+        for ( unsigned char sl = 0; sl < grid.layers[l].sublayers.size(); ++sl ) {
+          unsigned int spacing = grid.layers[l].sublayers[sl].spacing;
+          grid.generate_pinout_nodes( pinout, l, sl, 0, bus.bus_widths[l][sl],
+            obstacles, spacing);
+          grid.generate_pinout_nodes( pinout, l, sl, 1, bus.bus_widths[l][sl],
+            obstacles, spacing);
         }
       }
       if ( pinout.nodes.size() == 0 ) bus.valid = 0;
+      else bus.valid = 1;
     }
+    set_psudo_blockage( bus , 1 );
   }
 }
 
 void Router::route_all( void )
 {
   bool success = 0;
-  for ( auto& bus : buses ) {
-  //for ( int k = buses.size() - 1; k >= 0; k --) {
-    //auto& bus = buses[k];
+  for (int k = 0; k < buses.size(); k ++ ) { //sequence
+  //for ( int k = buses.size() - 1; k >= 0; k --) { //inverse
+    Bus& bus = buses[k];
+    set_psudo_blockage( bus , 0 );
     if ( !bus.valid ) continue;
     std::cout << "BUS " << bus.name << ": ";
-    for(uint8_t n = 0; n < bus.pinouts.size(); n ++) {
+    for( unsigned char n = 0; n < bus.pinouts.size(); n ++) {
       grid.update_routable_range( bus.bus_widths );
       // for first 2 pin route
       if ( n == 0 ) {
         success = route( bus, 0, 1 );
-        std::cout << "first 2pin route success" << std::endl;
         n = 1;
         if (success == 0) break;
-        const auto& source = bus.pinouts[0];
-        for ( const auto& rn : source.nodes ) {
+        std::cout << "first 2pin route success" << std::endl;
+        const Pinout& source = bus.pinouts[0];
+        for ( unsigned int n = 0; n < source.nodes.size(); ++n ) {
+          const RoutingNode& rn = source.nodes[n];
           set_source( rn, 0 );
         }
-        const auto& source1 = bus.pinouts[1];
-        for ( const auto& rn : source1.nodes ) {
+        const Pinout& source1 = bus.pinouts[1];
+        for ( unsigned int n = 0; n < source1.nodes.size(); ++n ) {
+          const RoutingNode& rn = source1.nodes[n];
           set_source( rn, 0 );
         }
       }
       // for pin to net route (pin index >=2)
       else{
         success = route_pin2net( bus, n );
-        std::cout << n << "pin2net route success" << std::endl;
         if (success == 0) break;
-        const auto& source = bus.pinouts[n];
-        for ( const auto& rn : source.nodes ) {
+        std::cout << "pin2net route success" << std::endl;
+        const Pinout& target = bus.pinouts[n];
+        for ( unsigned int n = 0; n < target.nodes.size(); ++n ) {
+          const RoutingNode& rn = target.nodes[n];
           set_source( rn, 0 );
         }
+
       }
       // set dir dir_l to 0
-      for ( auto &layer : grid.layers) {
-        for ( auto & sublayer : layer.sublayers) {
-          for ( auto & grid_track : sublayer.grid_nodes) {
-            for ( auto & gridnode : grid_track){
+      for ( Layer&layer : grid.layers) {
+        for ( Sublayer& sublayer : layer.sublayers) {
+          for ( std::vector <GridNode>& grid_track : sublayer.grid_nodes) {
+            for ( GridNode& gridnode : grid_track){
               gridnode.set_bit( GridNode::dir, 0 );
               gridnode.set_bit( GridNode::dir_l, 0 );
             }
@@ -75,7 +88,7 @@ void Router::route_all( void )
     if (success) {
       // Add wires as obstacles to the grid map
       reduce_overlap_path( bus );
-      for (auto& route : bus.routes) {
+      for (BusRoute& route : bus.routes) {
         path2wire( bus, bus.bus_widths );
         grid.add_obstacles(route.wires);
       }
@@ -83,20 +96,27 @@ void Router::route_all( void )
       output_route( bus );
     } else {
       std::cout << "Failed!!!!!!!!!!!!!!!!!!!!!!!!" << std::endl;
+      reduce_overlap_path( bus );
+      for (BusRoute& route : bus.routes) {
+        path2wire( bus, bus.bus_widths );
+      }
+      output_route( bus );
     }
-    const auto& source = bus.pinouts[0];
-    for ( const auto& rn : source.nodes ) {
+    const Pinout& source = bus.pinouts[0];
+    for ( unsigned int n = 0; n < source.nodes.size(); ++n ) {
+      const RoutingNode& rn = source.nodes[n];
       set_source( rn, 0 );
     }
-    const auto& target = bus.pinouts[0];
-    for ( const auto& rn : target.nodes ) {
+    const Pinout& target = bus.pinouts[0];
+    for ( unsigned int n = 0; n < target.nodes.size(); ++n ) {
+      const RoutingNode& rn = target.nodes[n];
       set_target( rn, 0 );
     }
     // reset target info in gridmap
-    for ( auto &layer : grid.layers) {
-      for ( auto & sublayer : layer.sublayers) {
-        for ( auto & grid_track : sublayer.grid_nodes) {
-          for ( auto & gridnode : grid_track){
+    for ( Layer& layer : grid.layers) {
+      for ( Sublayer& sublayer : layer.sublayers) {
+        for ( std::vector<GridNode>& grid_track : sublayer.grid_nodes) {
+          for ( GridNode& gridnode : grid_track){
             gridnode.set_bit( GridNode::tar_low, 0 );
             gridnode.set_bit( GridNode::tar_upp, 0 );
           }
@@ -107,38 +127,42 @@ void Router::route_all( void )
   output.close();
 }
 
-bool Router::route( Bus& bus, uint32_t s, uint32_t t )
+bool Router::route( Bus& bus, unsigned int s, unsigned int t )
 {
   bool success = 0;
-  const auto& source = bus.pinouts[s];
-  const auto& target = bus.pinouts[t];
-  const auto nbits = source.nodes[0].t_cur.size();
+  const Pinout& source = bus.pinouts[s];
+  const Pinout& target = bus.pinouts[t];
+  const unsigned int nbits = source.nodes[0].t_cur.size();
   std::priority_queue<RoutingNode, std::vector<RoutingNode>, RoutingOrder>
     pq;
   Node target_node;
   /* Push source nodes into the routing queue */
-  for ( const auto& rn : source.nodes ) {
+  for ( unsigned int n = 0; n < source.nodes.size(); ++n ) {
+    const RoutingNode& rn = source.nodes[n];
     pq.push( rn );
     set_source( rn, 1 );
   }
   /* Mark all the available target nodes */
-  for ( const auto& rn : target.nodes ) {
+  for ( unsigned int n = 0; n < target.nodes.size(); ++n ) {
+    const RoutingNode& rn = target.nodes[n];
     set_target( rn, 1 );
   }
   /* Maze routing */
   while ( !pq.empty() ) {
     RoutingNode rn = pq.top();
     pq.pop();
-    auto& layer = grid.layers[rn.node.l];
-    auto& sublayer = layer.sublayers[rn.node.sl];
-    auto& grid_node = sublayer.grid_nodes[rn.node.t][rn.node.i];
-    const auto& bw = bus.bus_widths[rn.node.l][rn.node.sl];
+    Layer& layer = grid.layers[rn.node.l];
+    Sublayer& sublayer = layer.sublayers[rn.node.sl];
+    GridNode& grid_node = sublayer.grid_nodes[rn.node.t][rn.node.i];
+    const unsigned int& bw = bus.bus_widths[rn.node.l][rn.node.sl];
+
     if ( rn.cost > grid_node.cost ) continue;
     // Check if the target is reached
     if ( rn.heading.pre ? grid_node.get_bit(GridNode::tar_low)
       : grid_node.get_bit(GridNode::tar_upp) ) {
       // Find the matched target routing node
-      for ( const auto& rn_tar : target.nodes ) {
+      for ( unsigned int n = 0; n < target.nodes.size(); ++n ) {
+        const RoutingNode& rn_tar = target.nodes[n];
         if ( rn_tar.node.l == rn.node.l && rn_tar.node.sl == rn.node.sl
           && rn_tar.heading.cur == !rn.heading.cur ) rn.t_cur = rn_tar.t_cur;
       }
@@ -154,8 +178,13 @@ bool Router::route( Bus& bus, uint32_t s, uint32_t t )
     if ( rn.heading.cur && (rn.node.i != layer.lint_coor.size()-1) ) {
       rn_q.node.i = rn.node.i + 1;
       rn_q.cost += layer.lint_coor[rn_q.node.i] - layer.lint_coor[rn.node.i];
+      // psudo blockage
+      if ( grid_node.get_bit( GridNode::psu )){
+        rn_q.cost += 10 * VIA_COST;
+        //std::cout << "PSUDO!!!! \n";
+      }
       if ( check_node(rn_q, nbits, bw) ) {
-        auto& grid_node = sublayer.grid_nodes[rn_q.node.t][rn_q.node.i];
+        GridNode& grid_node = sublayer.grid_nodes[rn_q.node.t][rn_q.node.i];
         grid_node.from = rn_q.i_cur;
         grid_node.set_bit(GridNode::dir, 0);
         pq.push(rn_q);
@@ -165,8 +194,13 @@ bool Router::route( Bus& bus, uint32_t s, uint32_t t )
       rn_q = rn;
       rn_q.node.i = rn.node.i - 1;
       rn_q.cost += layer.lint_coor[rn.node.i] - layer.lint_coor[rn_q.node.i];
+      // psudo blockage
+      if ( grid_node.get_bit( GridNode::psu )){
+        rn_q.cost += 10 * VIA_COST;
+        //std::cout << "PSUDO!!!! \n";
+      }
       if ( check_node(rn_q, nbits, bw) ) {
-        auto& grid_node = sublayer.grid_nodes[rn_q.node.t][rn_q.node.i];
+        GridNode& grid_node = sublayer.grid_nodes[rn_q.node.t][rn_q.node.i];
         grid_node.from = rn_q.i_cur;
         grid_node.set_bit(GridNode::dir, 0);
         pq.push(rn_q);
@@ -177,6 +211,11 @@ bool Router::route( Bus& bus, uint32_t s, uint32_t t )
     if ( !rn.locked && rn.node.i == rn.i_cur ) continue;
     rn_q.locked = 0;
     rn_q.cost = rn.cost + VIA_COST;
+    // psudo blockage
+    if ( grid_node.get_bit( GridNode::psu )){
+      rn_q.cost += 10 * VIA_COST;
+      //std::cout << "PSUDO!!!! \n";
+    }
     rn_q.heading.pre = rn.heading.cur;
     rn_q.l_pre = rn.node.l;
     rn_q.sl_pre = rn.node.sl;
@@ -186,10 +225,11 @@ bool Router::route( Bus& bus, uint32_t s, uint32_t t )
     rn_q.range = Range(-1, -1);
     // Lower layer
     if ( rn.node.l != 0 ) {
-      auto& layer_cur = grid.layers[rn.node.l-1];
+      Layer& layer_cur = grid.layers[rn.node.l-1];
       rn_q.node.l = rn.node.l - 1;
-      for ( uint8_t sl = 0; sl < layer_cur.sublayers.size(); ++sl ) {
-        auto& sublayer_cur = layer_cur.sublayers[sl];
+      for ( unsigned char sl = 0; sl < layer_cur.sublayers.size(); ++sl ) {
+        const unsigned int& bw_low = bus.bus_widths[rn_q.node.l][sl];
+        Sublayer& sublayer_cur = layer_cur.sublayers[sl];
         rn_q.node.sl = sl;
         rn_q.node.t = sublayer_cur.ulint_sltra[rn.node.i];
         if ( rn_q.node.t == -1 ) continue;
@@ -197,8 +237,8 @@ bool Router::route( Bus& bus, uint32_t s, uint32_t t )
         rn_q.heading.cur = 0;
         rn_q.i_cur = sublayer.sltra_llint[rn.t_cur.back()];
         rn_q.node.i = rn_q.i_cur;
-        if ( check_node(rn_q, nbits, bw) ) {
-          auto& grid_node = sublayer_cur.grid_nodes[rn_q.node.t][rn_q.node.i];
+        if ( check_node(rn_q, nbits, bw_low) ) {
+          GridNode& grid_node = sublayer_cur.grid_nodes[rn_q.node.t][rn_q.node.i];
           grid_node.from = rn.node.t;
           grid_node.set_bit(GridNode::dir, 1);
           grid_node.set_bit(GridNode::dir_l, 0);
@@ -208,8 +248,8 @@ bool Router::route( Bus& bus, uint32_t s, uint32_t t )
         rn_q.heading.cur = 1;
         rn_q.i_cur = sublayer.sltra_llint[rn.t_cur.front()];
         rn_q.node.i = rn_q.i_cur;
-        if ( check_node(rn_q, nbits, bw) ) {
-          auto& grid_node = sublayer_cur.grid_nodes[rn_q.node.t][rn_q.node.i];
+        if ( check_node(rn_q, nbits, bw_low) ) {
+          GridNode& grid_node = sublayer_cur.grid_nodes[rn_q.node.t][rn_q.node.i];
           grid_node.from = rn.node.t;
           grid_node.set_bit(GridNode::dir, 1);
           grid_node.set_bit(GridNode::dir_l, 0);
@@ -219,19 +259,20 @@ bool Router::route( Bus& bus, uint32_t s, uint32_t t )
     }
     // Upper layer
     if ( rn.node.l != grid.layers.size()-1 ) {
-      auto& layer_cur = grid.layers[rn.node.l+1];
+      Layer& layer_cur = grid.layers[rn.node.l+1];
       rn_q.node.l = rn.node.l + 1;
-      for ( uint8_t sl = 0; sl < layer_cur.sublayers.size(); ++sl ) {
+      for ( unsigned char sl = 0; sl < layer_cur.sublayers.size(); ++sl ) {
+        const unsigned int& bw_upp = bus.bus_widths[rn_q.node.l][sl];
         rn_q.node.sl = sl;
-        auto& sublayer_cur = layer_cur.sublayers[sl];
+        Sublayer& sublayer_cur = layer_cur.sublayers[sl];
         rn_q.node.t = sublayer_cur.llint_sltra[rn.node.i];
         if ( rn_q.node.t == -1 ) continue;
         // Lower heading
         rn_q.heading.cur = 0;
         rn_q.i_cur = sublayer.sltra_ulint[rn.t_cur.back()];
         rn_q.node.i = rn_q.i_cur;
-        if ( check_node(rn_q, nbits, bw) ) {
-          auto& grid_node = sublayer_cur.grid_nodes[rn_q.node.t][rn_q.node.i];
+        if ( check_node(rn_q, nbits, bw_upp) ) {
+          GridNode& grid_node = sublayer_cur.grid_nodes[rn_q.node.t][rn_q.node.i];
           grid_node.from = rn.node.t;
           grid_node.set_bit(GridNode::dir, 1);
           grid_node.set_bit(GridNode::dir_l, 1);
@@ -241,8 +282,8 @@ bool Router::route( Bus& bus, uint32_t s, uint32_t t )
         rn_q.heading.cur = 1;
         rn_q.i_cur = sublayer.sltra_ulint[rn.t_cur.front()];
         rn_q.node.i = rn_q.i_cur;
-        if ( check_node(rn_q, nbits, bw) ) {
-          auto& grid_node = sublayer_cur.grid_nodes[rn_q.node.t][rn_q.node.i];
+        if ( check_node(rn_q, nbits, bw_upp) ) {
+          GridNode& grid_node = sublayer_cur.grid_nodes[rn_q.node.t][rn_q.node.i];
           grid_node.from = rn.node.t;
           grid_node.set_bit(GridNode::dir, 1);
           grid_node.set_bit(GridNode::dir_l, 1);
@@ -254,7 +295,7 @@ bool Router::route( Bus& bus, uint32_t s, uint32_t t )
   if ( success ) {
 
     bus.routes.resize(bus.routes.size() + 1);
-    auto& route = bus.routes.back();
+    BusRoute& route = bus.routes.back();
     route.l_src = source.pin_shapes[0].l;
     route.sl_src = source.pin_shapes[0].sl;
     route.l_tar = target.pin_shapes[0].l;
@@ -268,17 +309,17 @@ bool Router::route( Bus& bus, uint32_t s, uint32_t t )
   return success;
 }
 
-bool Router::route_pin2net( Bus& bus, uint32_t s)
+bool Router::route_pin2net( Bus& bus, unsigned int s)
 {
   bool success = 0;
-  const auto& source = bus.pinouts[s];
+  const Pinout& source = bus.pinouts[s];
   Pinout target;
-  const auto nbits = source.nodes[0].t_cur.size();
+  const unsigned int nbits = source.nodes[0].t_cur.size();
   std::priority_queue<RoutingNode, std::vector<RoutingNode>, RoutingOrder>
     pq;
   Node target_node;
   /* Push source nodes into the routing queue */
-  for ( const auto& rn : source.nodes ) {
+  for ( const RoutingNode& rn : source.nodes ) {
     pq.push( rn );
     set_source( rn, 1 );
   }
@@ -287,19 +328,23 @@ bool Router::route_pin2net( Bus& bus, uint32_t s)
   while ( !pq.empty() ) {
     RoutingNode rn = pq.top();
     pq.pop();
-    auto& layer = grid.layers[rn.node.l];
-    auto& sublayer = layer.sublayers[rn.node.sl];
-    auto& grid_node = sublayer.grid_nodes[rn.node.t][rn.node.i];
-    const auto& bw = bus.bus_widths[rn.node.l][rn.node.sl];
-    if ( rn.cost > grid_node.cost ) continue;
+    Layer& layer = grid.layers[rn.node.l];
+    Sublayer& sublayer = layer.sublayers[rn.node.sl];
+    GridNode& grid_node = sublayer.grid_nodes[rn.node.t][rn.node.i];
+    const unsigned int& bw = bus.bus_widths[rn.node.l][rn.node.sl];
+    /*if ( bus.name == "bus4") {
+      std::cout << " t = " << sublayer.sltra_coor[rn.node.t] << " i = "
+        << layer.lint_coor[rn.node.i] << std::endl;
+    }*/
+
     // Check if the target is reached
     if ( rn.heading.pre ? grid_node.get_bit(GridNode::tar_low)
       : grid_node.get_bit(GridNode::tar_upp) ) {
       // Find the matched target routing node
-      for ( auto& pinout_tar : bus.steiner_tars ) {
-        const auto& rn_tar = pinout_tar.nodes[0];
+      for ( Pinout& pinout_tar : bus.steiner_tars ) {
+        const RoutingNode& rn_tar = pinout_tar.nodes[0];
         //find correct target track
-        const auto& correct_rn_tar_t = rn.heading.pre ? rn_tar.t_cur.back() : rn_tar.t_cur.front();
+        const unsigned int& correct_rn_tar_t = rn.heading.pre ? rn_tar.t_cur.back() : rn_tar.t_cur.front();
         if ( rn_tar.node.l == rn.node.l && rn_tar.node.sl == rn.node.sl
           && rn_tar.heading.cur == !rn.heading.cur &&  correct_rn_tar_t == rn.node.t )
         {
@@ -310,7 +355,7 @@ bool Router::route_pin2net( Bus& bus, uint32_t s)
           //rec.upper.coor[layer.direction] = rec.lower.coor[!layer.direction] + bus.bus_widths[rec.l][rec.sl];
 
           //copy the info of target node to generate correct pinout
-          for (uint8_t n = 0; n < bus.bits.size(); n ++) {
+          for (unsigned char n = 0; n < bus.bits.size(); n ++) {
             pinout_tar.pin_shapes[n].lower.coor[!layer.direction] = layer.lint_coor[rn.node.i] - bus.bus_widths[rec.l][rec.sl] / 2;
             pinout_tar.pin_shapes[n].upper.coor[!layer.direction] = pinout_tar.pin_shapes[n].lower.coor[!layer.direction] + bus.bus_widths[rec.l][rec.sl];
           }
@@ -334,8 +379,13 @@ bool Router::route_pin2net( Bus& bus, uint32_t s)
     if ( rn.heading.cur && (rn.node.i != layer.lint_coor.size()-1) ) {
       rn_q.node.i = rn.node.i + 1;
       rn_q.cost += layer.lint_coor[rn_q.node.i] - layer.lint_coor[rn.node.i];
+      // psudo blockage
+      if ( grid_node.get_bit( GridNode::psu )){
+        rn_q.cost += 10 * VIA_COST;
+        //std::cout << "PSUDO!!!! \n";
+      }
       if ( check_node(rn_q, nbits, bw) ) {
-        auto& grid_node = sublayer.grid_nodes[rn_q.node.t][rn_q.node.i];
+        GridNode& grid_node = sublayer.grid_nodes[rn_q.node.t][rn_q.node.i];
         grid_node.from = rn_q.i_cur;
         grid_node.set_bit(GridNode::dir, 0);
         pq.push(rn_q);
@@ -345,8 +395,13 @@ bool Router::route_pin2net( Bus& bus, uint32_t s)
       rn_q = rn;
       rn_q.node.i = rn.node.i - 1;
       rn_q.cost += layer.lint_coor[rn.node.i] - layer.lint_coor[rn_q.node.i];
+      // psudo blockage
+      if ( grid_node.get_bit( GridNode::psu )){
+        rn_q.cost += 10 * VIA_COST;
+        //std::cout << "PSUDO!!!! \n";
+      }
       if ( check_node(rn_q, nbits, bw) ) {
-        auto& grid_node = sublayer.grid_nodes[rn_q.node.t][rn_q.node.i];
+        GridNode& grid_node = sublayer.grid_nodes[rn_q.node.t][rn_q.node.i];
         grid_node.from = rn_q.i_cur;
         grid_node.set_bit(GridNode::dir, 0);
         pq.push(rn_q);
@@ -357,6 +412,11 @@ bool Router::route_pin2net( Bus& bus, uint32_t s)
     if ( !rn.locked && rn.node.i == rn.i_cur ) continue;
     rn_q.locked = 0;
     rn_q.cost = rn.cost + VIA_COST;
+    // psudo blockage
+    if ( grid_node.get_bit( GridNode::psu )){
+      rn_q.cost += 10 * VIA_COST;
+      //std::cout << "PSUDO!!!! \n";
+    }
     rn_q.heading.pre = rn.heading.cur;
     rn_q.l_pre = rn.node.l;
     rn_q.sl_pre = rn.node.sl;
@@ -366,10 +426,10 @@ bool Router::route_pin2net( Bus& bus, uint32_t s)
     rn_q.range = Range(-1, -1);
     // Lower layer
     if ( rn.node.l != 0 ) {
-      auto& layer_cur = grid.layers[rn.node.l-1];
+      Layer& layer_cur = grid.layers[rn.node.l-1];
       rn_q.node.l = rn.node.l - 1;
-      for ( uint8_t sl = 0; sl < layer_cur.sublayers.size(); ++sl ) {
-        auto& sublayer_cur = layer_cur.sublayers[sl];
+      for ( unsigned char sl = 0; sl < layer_cur.sublayers.size(); ++sl ) {
+        Sublayer& sublayer_cur = layer_cur.sublayers[sl];
         rn_q.node.sl = sl;
         rn_q.node.t = sublayer_cur.ulint_sltra[rn.node.i];
         if ( rn_q.node.t == -1 ) continue;
@@ -378,7 +438,7 @@ bool Router::route_pin2net( Bus& bus, uint32_t s)
         rn_q.i_cur = sublayer.sltra_llint[rn.t_cur.back()];
         rn_q.node.i = rn_q.i_cur;
         if ( check_node(rn_q, nbits, bw) ) {
-          auto& grid_node = sublayer_cur.grid_nodes[rn_q.node.t][rn_q.node.i];
+          GridNode& grid_node = sublayer_cur.grid_nodes[rn_q.node.t][rn_q.node.i];
           grid_node.from = rn.node.t;
           grid_node.set_bit(GridNode::dir, 1);
           grid_node.set_bit(GridNode::dir_l, 0);
@@ -389,7 +449,7 @@ bool Router::route_pin2net( Bus& bus, uint32_t s)
         rn_q.i_cur = sublayer.sltra_llint[rn.t_cur.front()];
         rn_q.node.i = rn_q.i_cur;
         if ( check_node(rn_q, nbits, bw) ) {
-          auto& grid_node = sublayer_cur.grid_nodes[rn_q.node.t][rn_q.node.i];
+          GridNode& grid_node = sublayer_cur.grid_nodes[rn_q.node.t][rn_q.node.i];
           grid_node.from = rn.node.t;
           grid_node.set_bit(GridNode::dir, 1);
           grid_node.set_bit(GridNode::dir_l, 0);
@@ -399,11 +459,11 @@ bool Router::route_pin2net( Bus& bus, uint32_t s)
     }
     // Upper layer
     if ( rn.node.l != grid.layers.size()-1 ) {
-      auto& layer_cur = grid.layers[rn.node.l+1];
+      Layer& layer_cur = grid.layers[rn.node.l+1];
       rn_q.node.l = rn.node.l + 1;
-      for ( uint8_t sl = 0; sl < layer_cur.sublayers.size(); ++sl ) {
+      for ( unsigned char sl = 0; sl < layer_cur.sublayers.size(); ++sl ) {
         rn_q.node.sl = sl;
-        auto& sublayer_cur = layer_cur.sublayers[sl];
+        Sublayer& sublayer_cur = layer_cur.sublayers[sl];
         rn_q.node.t = sublayer_cur.llint_sltra[rn.node.i];
         if ( rn_q.node.t == -1 ) continue;
         // Lower heading
@@ -411,7 +471,7 @@ bool Router::route_pin2net( Bus& bus, uint32_t s)
         rn_q.i_cur = sublayer.sltra_ulint[rn.t_cur.back()];
         rn_q.node.i = rn_q.i_cur;
         if ( check_node(rn_q, nbits, bw) ) {
-          auto& grid_node = sublayer_cur.grid_nodes[rn_q.node.t][rn_q.node.i];
+          GridNode& grid_node = sublayer_cur.grid_nodes[rn_q.node.t][rn_q.node.i];
           grid_node.from = rn.node.t;
           grid_node.set_bit(GridNode::dir, 1);
           grid_node.set_bit(GridNode::dir_l, 1);
@@ -422,7 +482,7 @@ bool Router::route_pin2net( Bus& bus, uint32_t s)
         rn_q.i_cur = sublayer.sltra_ulint[rn.t_cur.front()];
         rn_q.node.i = rn_q.i_cur;
         if ( check_node(rn_q, nbits, bw) ) {
-          auto& grid_node = sublayer_cur.grid_nodes[rn_q.node.t][rn_q.node.i];
+          GridNode& grid_node = sublayer_cur.grid_nodes[rn_q.node.t][rn_q.node.i];
           grid_node.from = rn.node.t;
           grid_node.set_bit(GridNode::dir, 1);
           grid_node.set_bit(GridNode::dir_l, 1);
@@ -433,7 +493,7 @@ bool Router::route_pin2net( Bus& bus, uint32_t s)
   }
   if ( success ) {
     bus.routes.resize(bus.routes.size() + 1);
-    auto& route = bus.routes.back();
+    BusRoute& route = bus.routes.back();
     route.l_src = source.pin_shapes[0].l;
     route.sl_src = source.pin_shapes[0].sl;
     route.l_tar = target_node.l;
@@ -446,12 +506,12 @@ bool Router::route_pin2net( Bus& bus, uint32_t s)
   return success;
 }
 
-bool Router::check_node( RoutingNode& rn, const uint8_t nbits,
+bool Router::check_node( RoutingNode& rn, const unsigned char nbits,
   const uint16_t bw )
 {
-  auto& layer = grid.layers[rn.node.l];
-  auto& sublayer = layer.sublayers[rn.node.sl];
-  auto& grid_node = sublayer.grid_nodes[rn.node.t][rn.node.i];
+  Layer& layer = grid.layers[rn.node.l];
+  Sublayer& sublayer = layer.sublayers[rn.node.sl];
+  GridNode& grid_node = sublayer.grid_nodes[rn.node.t][rn.node.i];
   if ( rn.heading.pre ? grid_node.get_bit(GridNode::tar_low)
     : grid_node.get_bit(GridNode::tar_upp) ) return 1;
   if ( rn.cost >= grid_node.cost ) return 0;
@@ -470,50 +530,123 @@ bool Router::check_node( RoutingNode& rn, const uint8_t nbits,
 
 void Router::set_source( const RoutingNode& rn, bool bit )
 {
-  auto& layer = grid.layers[rn.node.l];
-  auto& sublayer = layer.sublayers[rn.node.sl];
-  auto& grid_nodes = sublayer.grid_nodes;
+  Layer& layer = grid.layers[rn.node.l];
+  Sublayer& sublayer = layer.sublayers[rn.node.sl];
+  std::vector <std::vector<GridNode> >& grid_nodes = sublayer.grid_nodes;
   grid_nodes[rn.t_cur.front()][rn.node.i].set_bit( GridNode::src, bit );
 }
 
-/*void Router::set_psudo_blokage( const RoutingNode& rn, bool bit )
+void Router::set_psudo_blockage( const Bus& bus, bool bit )
 {
-  auto& layer = grid.layers[rn.node.l];
-  auto& sublayer = layer.sublayers[rn.node.sl];
-  auto& grid_nodes = sublayer.grid_nodes;
-  grid_nodes[rn.t_cur.front()][rn.node.i].set_bit( GridNode::src, bit );
-}*/
+  //std::cout << "bus = " << bus.name << std::endl;
+  //std::cout << "pinout size = " << bus.pinouts.size() << std::endl;
+  for ( int p = 0; p < bus.pinouts.size(); p ++) {
+    Pinout pinout = bus.pinouts[p];
+    //std::cout << "pinout node size = " << pinout.nodes.size() << std::endl;
+    for ( int r = 0; r < pinout.nodes.size(); r ++) {
+      RoutingNode rn = pinout.nodes[r];
+      Layer& layer = grid.layers[rn.node.l];
+      Sublayer& sublayer = layer.sublayers[rn.node.sl];
+      std::vector<std::vector<GridNode>>& grid_nodes = sublayer.grid_nodes;
+      RoutingNode rn_q = rn;
+      unsigned char extend_const = 25;
+      unsigned int head = rn.t_cur.front();
+      unsigned int tail = rn.t_cur.back();
+      if ( head > tail ) {
+        unsigned int tmp = head;
+        head = tail;
+        tail = tmp;
+      }
+      //std::cout << "head = " << head << "  tail = " << tail << std::endl;
+      for ( unsigned char c = 0; c < extend_const; c ++) {
+        if ( head <= 0 ) break;
+        head --;
+      }
+      for ( unsigned char c = 0; c < extend_const; c ++) {
+        if ( tail >= sublayer.sltra_axis.size() - 1 ) break;
+        tail ++;
+      }
+      //std::cout << "ext head = " << head << "  ext back = " << tail << std::endl;
+      bool stop_extend = 0;
+      while ( true ) {
+        if (stop_extend && bit ) break;
+        if ( abs (rn_q.node.i - rn.node.i ) > bus.bits.size() + extend_const*2 ) break;
+        if ( rn_q.node.i == layer.lint_coor.size() && rn.heading.cur) break;
+        if ( rn_q.node.i == -1 && !rn.heading.cur) break;
+        // set psu from pinout to head to tail
+        for ( unsigned int track = head; track <= tail; track ++ ) {
+          if ( grid_nodes[track][rn_q.node.i].get_bit( GridNode::obs ))
+            stop_extend = 1;
+          if ( stop_extend && bit ) {
+            //std::cout << bus.name << "obs jump!!\n";
+            break;
+            continue;
+          }
+          // current layer
+          grid_nodes[track][rn_q.node.i].set_bit( GridNode::psu, bit );
+          // Lower layer
+          if ( rn.node.l != 0 ) {
+            Layer& layer_cur = grid.layers[rn.node.l-1];
+            for ( unsigned char sl = 0; sl < layer_cur.sublayers.size(); ++sl ) {
+              Sublayer& sublayer_cur = layer_cur.sublayers[sl];
+              unsigned int t = sublayer_cur.ulint_sltra[rn_q.node.i];
+              if ( t == -1 ) continue;
+              unsigned int i = sublayer.sltra_llint[track];
+              sublayer_cur.grid_nodes[t][i].set_bit( GridNode::psu, bit );
+            }
+          }
+          // upper layer
+          if ( rn.node.l != grid.layers.size()-1 ) {
+            Layer& layer_cur = grid.layers[rn.node.l+1];
+            for ( unsigned char sl = 0; sl < layer_cur.sublayers.size(); ++sl ) {
+              Sublayer& sublayer_cur = layer_cur.sublayers[sl];
+              unsigned int t = sublayer_cur.llint_sltra[rn_q.node.i];
+              if ( t == -1 ) continue;
+              unsigned int i = sublayer.sltra_ulint[track];
+              sublayer_cur.grid_nodes[t][i].set_bit( GridNode::psu, bit );
+            }
+          }
+        }
+        rn_q.node.i = (rn.heading.cur) ? rn_q.node.i + 1 : rn_q.node.i - 1;
+      }
+    }
+  }
+}
+
+
+
 
 void Router::set_target( const RoutingNode& rn, bool bit )
 {
-  auto& layer = grid.layers[rn.node.l];
-  auto& sublayer = layer.sublayers[rn.node.sl];
-  auto& grid_nodes = sublayer.grid_nodes;
+  Layer& layer = grid.layers[rn.node.l];
+  Sublayer& sublayer = layer.sublayers[rn.node.sl];
+  std::vector <std::vector<GridNode> >& grid_nodes = sublayer.grid_nodes;
   grid_nodes[rn.t_cur.front()][rn.node.i].set_bit( GridNode::tar_upp, bit );
   grid_nodes[rn.t_cur.back()][rn.node.i].set_bit( GridNode::tar_low, bit );
 }
 
 bool Router::backtrack( BusRoute& route, Node node, const Pinout& source,
-  const Pinout& target, const std::vector< std::vector<uint32_t> >& bw,
+  const Pinout& target, const std::vector< std::vector<unsigned int> >& bw,
   std::vector<Pinout> &steiner_tars)
 {
   bool src_reached = 0;
   bool first = 1;
-  const auto nbits = source.pin_shapes.size();
+  const unsigned int nbits = source.pin_shapes.size();
   std::vector<Node> nodes;
   bool heading_src;
   bool heading_tar;
-  std::vector<uint32_t> t_src;
-  std::vector<uint32_t> t_tar;
+  std::vector<unsigned int> t_src;
+  std::vector<unsigned int> t_tar;
   // Trace back the route nodes
   while ( !src_reached ) {
     nodes.push_back(node);
-    const auto& layer = grid.layers[node.l];
-    const auto& sublayer = layer.sublayers[node.sl];
-    const auto& grid_node = sublayer.grid_nodes[node.t][node.i];
+    const Layer& layer = grid.layers[node.l];
+    const Sublayer& sublayer = layer.sublayers[node.sl];
+    const GridNode& grid_node = sublayer.grid_nodes[node.t][node.i];
     if ( first ) {
       // Find the matched target routing node
-      for ( const auto& rn_tar : target.nodes ) {
+      for ( unsigned int n = 0; n < target.nodes.size(); ++n ) {
+        const RoutingNode& rn_tar = target.nodes[n];
         if ( rn_tar.node.l == node.l && rn_tar.node.sl == node.sl
           && rn_tar.node.i == node.i ) {
           t_tar = rn_tar.t_cur;
@@ -525,7 +658,8 @@ bool Router::backtrack( BusRoute& route, Node node, const Pinout& source,
     if ( grid_node.get_bit(GridNode::src) ) {
       src_reached = 1;
       // Find the matched source routing node
-      for ( const auto& rn_src : source.nodes ) {
+      for ( unsigned int n = 0; n < source.nodes.size(); ++n ) {
+        const RoutingNode& rn_src = source.nodes[n];
         if ( rn_src.node.l == node.l && rn_src.node.sl == node.sl
           && rn_src.node.i == node.i ) {
           t_src = rn_src.t_cur;
@@ -552,7 +686,7 @@ bool Router::backtrack( BusRoute& route, Node node, const Pinout& source,
   // Find the original track sets
   RoutingNode rn;
   //route.paths.clear();
-  for ( uint32_t n = 0; n < nodes.size(); ) {
+  for ( unsigned int n = 0; n < nodes.size(); ) {
     Path path;
     path.l = nodes[n].l;
     path.sl = nodes[n].sl;
@@ -579,13 +713,14 @@ bool Router::backtrack( BusRoute& route, Node node, const Pinout& source,
     steiner_tar.direction = grid.layers[rn.node.l].direction;
     steiner_tar.bit_order = path.bit_order;
 
-    auto& layer = grid.layers[rn.node.l];
-    auto& sublayer = layer.sublayers[rn.node.sl];
-    auto& grid_nodes = sublayer.grid_nodes;
+    Layer& layer = grid.layers[rn.node.l];
+    Sublayer& sublayer = layer.sublayers[rn.node.sl];
+    std::vector <std::vector<GridNode> >& grid_nodes = sublayer.grid_nodes;
+
     //set all node between node.i and i_cur to tar_upp/low
-    uint32_t low_i = (rn.i_cur < rn.node.i) ? rn.i_cur : rn.node.i;
-    uint32_t upp_i = (rn.i_cur > rn.node.i) ? rn.i_cur : rn.node.i;
-    /*for( uint32_t n = low_i; n <= upp_i; n ++) {
+    unsigned int low_i = (rn.i_cur < rn.node.i) ? rn.i_cur : rn.node.i;
+    unsigned int upp_i = (rn.i_cur > rn.node.i) ? rn.i_cur : rn.node.i;
+    /*for( unsigned int n = low_i; n <= upp_i; n ++) {
       if (low_i == upp_i) break;
       grid_nodes[rn.t_cur.front()][n].set_bit( GridNode::tar_upp, 1 );
       grid_nodes[rn.t_cur.back()][n].set_bit( GridNode::tar_low, 1 );
@@ -595,7 +730,7 @@ bool Router::backtrack( BusRoute& route, Node node, const Pinout& source,
 
     steiner_tar.nodes.push_back(rn);
     // add all pinshape to pinout_target
-    for ( uint8_t n = 0; n < rn.t_cur.size(); n ++) {
+    for ( unsigned char n = 0; n < rn.t_cur.size(); n ++) {
       Rectangle rec;
       rec.l = rn.node.l;
       rec.sl = rn.node.sl;
@@ -629,31 +764,31 @@ bool Router::backtrack( BusRoute& route, Node node, const Pinout& source,
 }
 
 void Router::generate_path( BusRoute& route, const Pinout& source,
-  const Pinout& target, const std::vector< std::vector<uint32_t> >& bw )
+  const Pinout& target, const std::vector< std::vector<unsigned int> >& bw )
 {
-  const auto nbits = source.pin_shapes.size();
-  for ( auto p = 0; p < route.paths.size(); ++p ) {
-    auto& path = route.paths[p];
-    const auto& layer = grid.layers[path.l];
-    const auto& sublayer = layer.sublayers[path.sl];
-    const auto& dir = layer.direction;
-    const auto half_width = bw[path.l][path.sl] >> 1;
+  const unsigned int nbits = source.pin_shapes.size();
+  for ( unsigned int p = 0; p < route.paths.size(); ++p ) {
+    Path& path = route.paths[p];
+    const Layer& layer = grid.layers[path.l];
+    const Sublayer& sublayer = layer.sublayers[path.sl];
+    const bool& dir = layer.direction;
+    const unsigned int half_width = bw[path.l][path.sl] >> 1;
     path.overlap = 0;
     // Convert track indices to coordinates
     path.t_coor.resize(nbits);
-    for ( auto n = 0; n < nbits; ++n ) {
+    for ( unsigned int n = 0; n < nbits; ++n ) {
       path.t_coor[n] = sublayer.sltra_coor[path.t[n]];
     }
     // Find intersection coordinates
     path.i_coor.resize(nbits);
     if ( p != 0 ) {
-      const auto& path_pre = route.paths[p-1];
-      const auto& layer_pre = grid.layers[path_pre.l];
-      const auto& sublayer_pre = layer_pre.sublayers[path_pre.sl];
-      for ( auto n = 0; n < nbits; ++n ) {
-        uint32_t tp = n;
+      const Path& path_pre = route.paths[p-1];
+      const Layer& layer_pre = grid.layers[path_pre.l];
+      const Sublayer& sublayer_pre = layer_pre.sublayers[path_pre.sl];
+      for ( unsigned int n = 0; n < nbits; ++n ) {
+        unsigned int tp = n;
         if ( path.bit_order != path_pre.bit_order ) tp = nbits-1-n;
-        auto& i_start = path.heading ? path.i_coor[n].low : path.i_coor[n].upp;
+        unsigned int& i_start = path.heading ? path.i_coor[n].low : path.i_coor[n].upp;
         if ( path.l > path_pre.l )
           i_start = sublayer_pre.sltra_ulint[path_pre.t[tp]];
         else
@@ -661,8 +796,8 @@ void Router::generate_path( BusRoute& route, const Pinout& source,
         i_start = layer.lint_coor[i_start];
       }
     } else {
-      for ( auto n = 0; n < nbits; ++n ) {
-        auto& i_end = path.heading ? path.i_coor[n].low : path.i_coor[n].upp;
+      for ( unsigned int n = 0; n < nbits; ++n ) {
+        unsigned int& i_end = path.heading ? path.i_coor[n].low : path.i_coor[n].upp;
         if ( path.heading )
           i_end = source.pin_shapes[0].upper.coor[!dir];
         else
@@ -670,13 +805,13 @@ void Router::generate_path( BusRoute& route, const Pinout& source,
       }
     }
     if ( p != route.paths.size()-1 ) {
-      const auto& path_next = route.paths[p+1];
-      const auto& layer_next = grid.layers[path_next.l];
-      const auto& sublayer_next = layer_next.sublayers[path_next.sl];
-      for ( auto n = 0; n < nbits; ++n ) {
-        uint32_t tn = n;
+      const Path& path_next = route.paths[p+1];
+      const Layer& layer_next = grid.layers[path_next.l];
+      const Sublayer& sublayer_next = layer_next.sublayers[path_next.sl];
+      for ( unsigned int n = 0; n < nbits; ++n ) {
+        unsigned int tn = n;
         if ( path.bit_order != path_next.bit_order ) tn = nbits-1-n;
-        auto& i_end = path.heading ? path.i_coor[n].upp : path.i_coor[n].low;
+        unsigned int& i_end = path.heading ? path.i_coor[n].upp : path.i_coor[n].low;
         if ( path.l > path_next.l ){
           i_end = sublayer_next.sltra_ulint[path_next.t[tn]];
         }
@@ -686,8 +821,8 @@ void Router::generate_path( BusRoute& route, const Pinout& source,
         i_end = layer.lint_coor[i_end];
       }
     } else {
-      for ( auto n = 0; n < nbits; ++n ) {
-        auto& i_end = path.heading ? path.i_coor[n].upp : path.i_coor[n].low;
+      for ( unsigned int n = 0; n < nbits; ++n ) {
+        unsigned int& i_end = path.heading ? path.i_coor[n].upp : path.i_coor[n].low;
         if ( path.heading )
           i_end = target.pin_shapes[0].lower.coor[!dir];
         else
@@ -698,18 +833,18 @@ void Router::generate_path( BusRoute& route, const Pinout& source,
   //route.path_cur_index = route.paths.size();
 }
 
-void Router::path2wire( Bus& bus, const std::vector< std::vector<uint32_t> >& bw )
+void Router::path2wire( Bus& bus, const std::vector< std::vector<unsigned int> >& bw )
 {
-  const auto nbits = bus.bits.size();
-  for ( auto& route : bus.routes) {
-    for ( auto& path : route.paths ){
-      const auto half_width = bw[path.l][path.sl] >> 1;
-      const auto& layer = grid.layers[path.l];
-      const auto& sublayer = layer.sublayers[path.sl];
-      const auto& dir = layer.direction;
-      for ( auto n = 0; n < nbits; ++n ) {
+  const unsigned int nbits = bus.bits.size();
+  for ( BusRoute& route : bus.routes) {
+    for ( Path& path : route.paths ){
+      const unsigned int half_width = bw[path.l][path.sl] >> 1;
+      const Layer& layer = grid.layers[path.l];
+      const Sublayer& sublayer = layer.sublayers[path.sl];
+      const bool& dir = layer.direction;
+      for ( unsigned int n = 0; n < nbits; ++n ) {
         Rectangle wire;
-        // std::cout << grid.layers.size()*3 + (uint32_t)path.l << " ";
+        // std::cout << grid.layers.size()*3 + (unsigned int)path.l << " ";
         wire.l = path.l;
         wire.sl = path.sl;
         if ( layer.direction ) {
@@ -741,43 +876,81 @@ void Router::path2wire( Bus& bus, const std::vector< std::vector<uint32_t> >& bw
 
 void Router::reduce_overlap_path( Bus &bus )
 {
-  for (uint32_t n = 1; n < bus.routes.size(); n ++) {
-    auto& path_tail = bus.routes[n].paths.back();
-    // find overlap path in pre tree
-    for (uint32_t m = 0; m < n; m ++) {
-      for ( auto& overlap_path : bus.routes[m].paths) {
+  for (unsigned int n = 1; n < bus.routes.size(); n ++) {
+    Path& path_tail = bus.routes[n].paths.back();
+    // find overlap path in main branch
+    for ( unsigned int m = 0; m < bus.main_branchs.size(); m ++ ) {
+      Path& overlap_path = bus.main_branchs[m];
+      if ( path_tail.l == overlap_path.l && path_tail.sl == overlap_path.sl &&
+        path_tail.t == overlap_path.t) {
+        // update overlap path in main path
+        bool modify = 0;
+        path_tail.overlap = 1;
+        for ( unsigned int c = 0; c < bus.bits.size(); c ++ ) {
+          Range& overlap_i_coor = overlap_path.i_coor[c];
+          unsigned int& path_tail_min = (path_tail.i_coor[c].low < path_tail.i_coor[c].upp)
+            ? path_tail.i_coor[c].low : path_tail.i_coor[c].upp;
+          unsigned int& path_tail_max = (path_tail.i_coor[c].low > path_tail.i_coor[c].upp)
+            ? path_tail.i_coor[c].low : path_tail.i_coor[c].upp;
+          unsigned int& overlap_path_min = (overlap_path.i_coor[c].low < overlap_path.i_coor[c].upp)
+            ? overlap_path.i_coor[c].low : overlap_path.i_coor[c].upp;
+          unsigned int& overlap_path_max = (overlap_path.i_coor[c].low > overlap_path.i_coor[c].upp)
+            ? overlap_path.i_coor[c].low : overlap_path.i_coor[c].upp;
+
+          if ( overlap_path_min > path_tail_min ){
+            overlap_path_min = path_tail_min;
+            std::cout << "overlap_low\n";
+            modify = 1;
+          }
+          if ( overlap_path_max < path_tail_max ){
+            overlap_path_max = path_tail_max;
+            std::cout << "overlap_upp\n";
+            modify = 1;
+          }
+        }
+        if ( modify ) {
+
+          std::cout << "overlap_pre\n";
+          continue;
+        }
+      }
+    }
+    if (path_tail.overlap)
+      break;
+    for (unsigned int m = 0; m < n; m ++) {
+      for ( unsigned int p = 0; p < bus.routes[m].paths.size(); p ++) {
+        Path& overlap_path = bus.routes[m].paths[p];
         if ( path_tail.l == overlap_path.l && path_tail.sl == overlap_path.sl &&
           path_tail.t == overlap_path.t) {
           // update overlap path in main path
           bool modify = 0;
           Path branch;
           branch = overlap_path;
-          for ( auto c = 0; c < bus.bits.size(); c ++ ) {
-            auto& overlap_i_coor = overlap_path.i_coor[c];
+          path_tail.overlap = 1;
+          for ( unsigned int c = 0; c < bus.bits.size(); c ++ ) {
+            Range& overlap_i_coor = overlap_path.i_coor[c];
 
-
-            auto& path_tail_min = (path_tail.i_coor[c].low < path_tail.i_coor[c].upp)
+            unsigned int& path_tail_min = (path_tail.i_coor[c].low < path_tail.i_coor[c].upp)
               ? path_tail.i_coor[c].low : path_tail.i_coor[c].upp;
-            auto& path_tail_max = (path_tail.i_coor[c].low > path_tail.i_coor[c].upp)
+            unsigned int& path_tail_max = (path_tail.i_coor[c].low > path_tail.i_coor[c].upp)
               ? path_tail.i_coor[c].low : path_tail.i_coor[c].upp;
-            auto& branch_min = (branch.i_coor[c].low < branch.i_coor[c].upp)
+            unsigned int& branch_min = (branch.i_coor[c].low < branch.i_coor[c].upp)
               ? branch.i_coor[c].low : branch.i_coor[c].upp;
-            auto& branch_max = (branch.i_coor[c].low > branch.i_coor[c].upp)
+            unsigned int& branch_max = (branch.i_coor[c].low > branch.i_coor[c].upp)
               ? branch.i_coor[c].low : branch.i_coor[c].upp;
 
             if ( branch_min > path_tail_min ){
               branch_min = path_tail_min;
-              std::cout << "overlap_low\n";
+              //std::cout << "overlap_low\n";
               modify = 1;
             }
             if ( branch_max < path_tail_max ){
               branch_max = path_tail_max;
-              std::cout << "overlap_upp\n";
+              //std::cout << "overlap_upp\n";
               modify = 1;
             }
           }
           if ( modify ) {
-            path_tail.overlap = 1;
             overlap_path.overlap = 1;
             bus.main_branchs.push_back(branch);
             std::cout << "overlap\n";
@@ -793,86 +966,94 @@ void Router::reduce_overlap_path( Bus &bus )
 
 void Router::output_route( const Bus& bus )
 {
-  const auto& nbits = bus.bits.size();
+  const unsigned int& nbits = bus.bits.size();
   output << "BUS " << bus.name << "\n";
-  for ( auto n = 0; n < nbits; ++n ) {
+  for ( unsigned int n = 0; n < nbits; ++n ) {
     output << "BIT " << bus.bits[n].name << "\n";
     std::string path_string;
-    uint32_t path_count = 0;
-    for ( auto r = 0; r < bus.routes.size(); r ++) {
-      auto& route = bus.routes[r];
-      for ( auto p = 0; p < route.paths.size(); ++p ) {
-        const auto& path = route.paths[p];
-        const auto& dir = grid.layers[path.l].direction;
-        const auto& bit_order = path.bit_order;
-        const auto& heading = path.heading;
-        const auto& t_coor = path.t_coor[bit_order ? n : (nbits-n-1)];
-        const auto& i_coor = path.i_coor[bit_order ? n : (nbits-n-1)];
-        const auto& i_start = heading ? i_coor.low : i_coor.upp;
-        const auto& i_end = heading ? i_coor.upp : i_coor.low;
-        const auto x_start = dir ? i_start : t_coor;
-        const auto y_start = dir ? t_coor : i_start;
-        const auto x_end = dir ? i_end : t_coor;
-        const auto y_end = dir ? t_coor : i_end;
-        const auto x_low = dir ? i_coor.low : t_coor;
-        const auto y_low = dir ? t_coor : i_coor.low;
-        const auto x_upp = dir ? i_coor.upp : t_coor;
-        const auto y_upp = dir ? t_coor : i_coor.upp;
+    unsigned int path_count = 0;
+    for ( unsigned int r = 0; r < bus.routes.size(); r ++) {
+      BusRoute route = bus.routes[r];
+      for ( unsigned int p = 0; p < route.paths.size(); ++p ) {
+        const Path& path = route.paths[p];
+        const bool& dir = grid.layers[path.l].direction;
+        const bool& bit_order = path.bit_order;
+        const bool& heading = path.heading;
+        const unsigned int& t_coor = path.t_coor[bit_order ? n : (nbits-n-1)];
+        const Range& i_coor = path.i_coor[bit_order ? n : (nbits-n-1)];
+        const unsigned int& i_start = heading ? i_coor.low : i_coor.upp;
+        const unsigned int& i_end = heading ? i_coor.upp : i_coor.low;
+        const unsigned int x_start = dir ? i_start : t_coor;
+        const unsigned int y_start = dir ? t_coor : i_start;
+        const unsigned int x_end = dir ? i_end : t_coor;
+        const unsigned int y_end = dir ? t_coor : i_end;
+        const unsigned int x_low = dir ? i_coor.low : t_coor;
+        const unsigned int y_low = dir ? t_coor : i_coor.low;
+        const unsigned int x_upp = dir ? i_coor.upp : t_coor;
+        const unsigned int y_upp = dir ? t_coor : i_coor.upp;
         if ( p == 0 ) {
-          const auto from_l = std::min(path.l, route.l_src);
-          const auto to_l = std::max(path.l, route.l_src);
-          const auto from_sl = ( path.l < route.l_src ) ? path.sl : route.sl_src;
-          const auto to_sl = ( path.l < route.l_src ) ? route.sl_src : path.sl;
+          const unsigned int from_l = std::min(path.l, route.l_src);
+          const unsigned int to_l = std::max(path.l, route.l_src);
+          const unsigned int from_sl = ( path.l < route.l_src ) ? path.sl : route.sl_src;
+          const unsigned int to_sl = ( path.l < route.l_src ) ? route.sl_src : path.sl;
+          const unsigned int pin_side_upp = bus.pinouts[r == 0 ? r : r + 1].pin_shapes[path.bit_order ? n : (nbits - 1 - n)].upper.coor[dir];
+          const unsigned int pin_side_low = bus.pinouts[r == 0 ? r : r + 1].pin_shapes[path.bit_order ? n : (nbits - 1 - n)].lower.coor[dir];
+          unsigned int via_point = dir ? y_start : x_start;
+          via_point += ( bus.bus_widths[to_l][to_sl] / 2 );
+          while ( !(via_point <= pin_side_upp && via_point >= pin_side_low) )
+            via_point--;
+          const unsigned int via_x = dir ? x_start : via_point;
+          const unsigned int via_y = dir ? via_point : y_start;
           if ( from_l == to_l ) {
-            for ( auto sl = from_sl; sl < to_sl; ++sl ) {
-              const auto& layer_name = grid.layers[to_l].sublayers[sl].name;
+            for ( unsigned int sl = from_sl; sl < to_sl; ++sl ) {
+              const std::string& layer_name = grid.layers[to_l].sublayers[sl].name;
               path_string += layer_name + " ";
-              path_string += coor_string(x_start, y_start);
+              path_string += coor_string(via_x, via_y);
               path_string += "\n";
               path_count++;
             }
           } else {
-            for ( auto sl = from_sl; sl < grid.layers[from_l].sublayers.size();
+            for ( unsigned int sl = from_sl; sl < grid.layers[from_l].sublayers.size();
               ++sl ) {
-              const auto& layer_name = grid.layers[from_l].sublayers[sl].name;
+              const std::string& layer_name = grid.layers[from_l].sublayers[sl].name;
               path_string += layer_name + " ";
-              path_string += coor_string(x_start, y_start);
+              path_string += coor_string(via_x, via_y);
               path_string += "\n";
               path_count++;
             }
-            for ( auto sl = 0; sl < to_sl; ++sl ) {
-              const auto& layer_name = grid.layers[to_l].sublayers[sl].name;
+            for ( unsigned int sl = 0; sl < to_sl; ++sl ) {
+              const std::string& layer_name = grid.layers[to_l].sublayers[sl].name;
               path_string += layer_name + " ";
-              path_string += coor_string(x_start, y_start);
+              path_string += coor_string(via_x, via_y);
               path_string += "\n";
               path_count++;
             }
           }
         } else {
-          const auto& path_pre = route.paths[p-1];
-          const auto from_l = std::min(path.l, path_pre.l);
-          const auto to_l = std::max(path.l, path_pre.l);
-          const auto from_sl = ( path.l < path_pre.l ) ? path.sl : path_pre.sl;
-          const auto to_sl = ( path.l < path_pre.l ) ? path_pre.sl : path.sl;
+          const Path& path_pre = route.paths[p-1];
+          const unsigned int from_l = std::min(path.l, path_pre.l);
+          const unsigned int to_l = std::max(path.l, path_pre.l);
+          const unsigned int from_sl = ( path.l < path_pre.l ) ? path.sl : path_pre.sl;
+          const unsigned int to_sl = ( path.l < path_pre.l ) ? path_pre.sl : path.sl;
           if ( from_l == to_l ) {
-            for ( auto sl = from_sl; sl < to_sl; ++sl ) {
-              const auto& layer_name = grid.layers[to_l].sublayers[sl].name;
+            for ( unsigned int sl = from_sl; sl < to_sl; ++sl ) {
+              const std::string& layer_name = grid.layers[to_l].sublayers[sl].name;
               path_string += layer_name + " ";
               path_string += coor_string(x_start, y_start);
               path_string += "\n";
               path_count++;
             }
           } else {
-            for ( auto sl = from_sl; sl < grid.layers[from_l].sublayers.size();
+            for ( unsigned int sl = from_sl; sl < grid.layers[from_l].sublayers.size();
               ++sl ) {
-              const auto& layer_name = grid.layers[from_l].sublayers[sl].name;
+              const std::string& layer_name = grid.layers[from_l].sublayers[sl].name;
               path_string += layer_name + " ";
               path_string += coor_string(x_start, y_start);
               path_string += "\n";
               path_count++;
             }
-            for ( auto sl = 0; sl < to_sl; ++sl ) {
-              const auto& layer_name = grid.layers[to_l].sublayers[sl].name;
+            for ( unsigned int sl = 0; sl < to_sl; ++sl ) {
+              const std::string& layer_name = grid.layers[to_l].sublayers[sl].name;
               path_string += layer_name + " ";
               path_string += coor_string(x_start, y_start);
               path_string += "\n";
@@ -881,7 +1062,7 @@ void Router::output_route( const Bus& bus )
           }
         }
         if ( !path.overlap ) {
-          const auto& layer_name = grid.layers[path.l].sublayers[path.sl].name;
+          const std::string& layer_name = grid.layers[path.l].sublayers[path.sl].name;
           path_string += layer_name + " ";
           path_string += coor_string(x_low, y_low);
           path_string += " ";
@@ -891,31 +1072,43 @@ void Router::output_route( const Bus& bus )
         }
 
         if ( p == route.paths.size()-1 ) {
-          const auto from_l = std::min(path.l, route.l_tar);
-          const auto to_l = std::max(path.l, route.l_tar);
-          const auto from_sl = ( path.l < route.l_tar ) ? path.sl : route.sl_tar;
-          const auto to_sl = ( path.l < route.l_tar ) ? route.sl_tar : path.sl;
+          const unsigned int from_l = std::min(path.l, route.l_tar);
+          const unsigned int to_l = std::max(path.l, route.l_tar);
+          const unsigned int from_sl = ( path.l < route.l_tar ) ? path.sl : route.sl_tar;
+          const unsigned int to_sl = ( path.l < route.l_tar ) ? route.sl_tar : path.sl;
+          unsigned int via_x = x_end;
+          unsigned int via_y = y_end;
+          if( r == 0){
+            const unsigned int pin_side_upp = bus.pinouts[1].pin_shapes[path.bit_order ? n : nbits - 1 - n].upper.coor[dir];
+            const unsigned int pin_side_low = bus.pinouts[1].pin_shapes[path.bit_order ? n : nbits - 1 - n].lower.coor[dir];
+            unsigned int via_point = dir ? y_end : x_end;
+            via_point += ( bus.bus_widths[to_l][to_sl] / 2 );
+            while (!(via_point <= pin_side_upp && via_point >= pin_side_low))
+              via_point--;
+            via_x = dir ? x_end : via_point;
+            via_y = dir ? via_point : y_end;
+          }
           if ( from_l == to_l ) {
-            for ( auto sl = from_sl; sl < to_sl; ++sl ) {
-              const auto& layer_name = grid.layers[to_l].sublayers[sl].name;
+            for ( unsigned int sl = from_sl; sl < to_sl; ++sl ) {
+              const std::string& layer_name = grid.layers[to_l].sublayers[sl].name;
               path_string += layer_name + " ";
-              path_string += coor_string(x_end, y_end);
+              path_string += coor_string(via_x, via_y);
               path_string += "\n";
               path_count++;
             }
           } else {
-            for ( auto sl = from_sl; sl < grid.layers[from_l].sublayers.size();
+            for ( unsigned int sl = from_sl; sl < grid.layers[from_l].sublayers.size();
               ++sl ) {
-              const auto& layer_name = grid.layers[from_l].sublayers[sl].name;
+              const std::string& layer_name = grid.layers[from_l].sublayers[sl].name;
               path_string += layer_name + " ";
-              path_string += coor_string(x_end, y_end);
+              path_string += coor_string(via_x, via_y);
               path_string += "\n";
               path_count++;
             }
-            for ( auto sl = 0; sl < to_sl; ++sl ) {
-              const auto& layer_name = grid.layers[to_l].sublayers[sl].name;
+            for ( unsigned int sl = 0; sl < to_sl; ++sl ) {
+              const std::string& layer_name = grid.layers[to_l].sublayers[sl].name;
               path_string += layer_name + " ";
-              path_string += coor_string(x_end, y_end);
+              path_string += coor_string(via_x, via_y);
               path_string += "\n";
               path_count++;
             }
@@ -923,17 +1116,17 @@ void Router::output_route( const Bus& bus )
         }
       }
     }
-    for (uint8_t p = 0; p < bus.main_branchs.size(); p ++) {
-      const auto& path = bus.main_branchs[p];
-      const auto& layer_name = grid.layers[path.l].sublayers[path.sl].name;
-      const auto& dir = grid.layers[path.l].direction;
-      const auto& bit_order = path.bit_order;
-      const auto& t_coor = path.t_coor[bit_order ? n : (nbits-n-1)];
-      const auto& i_coor = path.i_coor[bit_order ? n : (nbits-n-1)];
-      const auto x_low = dir ? i_coor.low : t_coor;
-      const auto y_low = dir ? t_coor : i_coor.low;
-      const auto x_upp = dir ? i_coor.upp : t_coor;
-      const auto y_upp = dir ? t_coor : i_coor.upp;
+    for (unsigned char p = 0; p < bus.main_branchs.size(); p ++) {
+      const Path& path = bus.main_branchs[p];
+      const std::string& layer_name = grid.layers[path.l].sublayers[path.sl].name;
+      const bool& dir = grid.layers[path.l].direction;
+      const bool& bit_order = path.bit_order;
+      const unsigned int& t_coor = path.t_coor[bit_order ? n : (nbits-n-1)];
+      const Range& i_coor = path.i_coor[bit_order ? n : (nbits-n-1)];
+      const unsigned int x_low = dir ? i_coor.low : t_coor;
+      const unsigned int y_low = dir ? t_coor : i_coor.low;
+      const unsigned int x_upp = dir ? i_coor.upp : t_coor;
+      const unsigned int y_upp = dir ? t_coor : i_coor.upp;
       path_string += layer_name + " ";
       path_string += coor_string(x_low, y_low);
       path_string += " ";
@@ -949,7 +1142,7 @@ void Router::output_route( const Bus& bus )
   output << "ENDBUS\n";
 }
 
-std::string Router::coor_string( const uint32_t& x, const uint32_t& y )
+std::string Router::coor_string( const unsigned int& x, const unsigned int& y )
 {
   return "(" + std::to_string(x) + " " + std::to_string(y) + ")";
 }

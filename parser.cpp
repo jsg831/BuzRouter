@@ -2,6 +2,8 @@
 
 void Parser::parse( std::string filename, Router& router )
 {
+  l = 0;
+  sl = 0;
   input_file.open( filename );
   std::string line;
   std::string word;
@@ -11,10 +13,10 @@ void Parser::parse( std::string filename, Router& router )
   bool buses_flag = 0;
   bool bit_flag = 0;
   bool width_flag = 0;
-  uint32_t layer_index = 0;
-  uint32_t sublayer_index = 0;
-  uint32_t bus_flag = 0;
-  uint32_t bus_layer_width = 0;
+  unsigned int layer_index = 0;
+  unsigned int sublayer_index = 0;
+  unsigned int bus_flag = 0;
+  unsigned int bus_layer_width = 0;
   if ( input_file.fail() ) return;
   while ( !input_file.eof() ) {
     getline( input_file, line );
@@ -88,7 +90,7 @@ void Parser::parse( std::string filename, Router& router )
           layer_width.back().resize(layer_width.back().size() + 1);
         }
       }
-      layer_table.insert(std::pair< std::string, std::pair<uint32_t,uint32_t> >
+      layer_table.insert(std::pair< std::string, std::pair<unsigned int,unsigned int> >
         ( sublayer.name, std::make_pair( layer_index, sublayer_index ) ) );
     } else if ( track_flag ) {
       router.tracks.resize( router.tracks.size()+1 );
@@ -151,7 +153,7 @@ void Parser::parse( std::string filename, Router& router )
     } else if ( width_flag ) {
       Bus &bus = router.buses.back();
       bus.bus_widths.resize(layer_width.size());
-      for ( auto n = 0; n < layer_width.size(); ++n ){
+      for ( unsigned int n = 0; n < layer_width.size(); ++n ){
         bus.bus_widths[n].resize(layer_width[n].size());
       }
       bus.bus_widths[l][sl] = ( convert(word.substr( 0, word.size()) ));
@@ -189,7 +191,43 @@ void Parser::parse( std::string filename, Router& router )
   }
 }
 
-uint32_t Parser::convert( const std::string& str )
+unsigned int Parser::convert( const std::string& str )
 {
   return std::strtoul( str.c_str(), nullptr, 10 );
+}
+
+bool pin_compare( const Rectangle pin_shapes1, const Rectangle pin_shapes2 )
+{
+  return pin_shapes1.lower.coor[0] < pin_shapes2.lower.coor[0];
+}
+
+void Parser::pinshapes_check( Router& router )
+{
+  for ( unsigned int b = 0; b < router.buses.size(); b ++ ) {
+    Bus& bus = router.buses[b];
+    for ( unsigned int n = 1; n < bus.bits.size(); n ++ ) {
+      Bit& bit = bus.bits[n];
+      std::vector <Rectangle> ref_pinshape = bus.bits[n-1].pin_shapes;
+      std::vector <Rectangle> pin_shape_copy = bit.pin_shapes;
+      for ( unsigned int p = 0; p < bit.pin_shapes.size(); p ++ ) {
+        Rectangle& pin_shape = bit.pin_shapes[p];
+        unsigned int min_dis = -1;
+        unsigned short min_index = p;
+        for ( unsigned int c = 0; c < bit.pin_shapes.size(); c ++ ) {
+          if ( min_dis > manhattan_distance(pin_shape_copy[p], ref_pinshape[c])) {
+            min_dis = manhattan_distance(pin_shape_copy[p], ref_pinshape[c]);
+            min_index = c;
+          }
+        }
+        pin_shape = pin_shape_copy[min_index];
+      }
+    }
+  }
+}
+int Parser::manhattan_distance( Rectangle a, Rectangle b )
+{
+  int x_dis = abs((int)a.lower.coor[0] - (int)b.lower.coor[0]);
+  int y_dis = abs((int)a.lower.coor[1] - (int)b.lower.coor[1]);
+  int l_dis = abs((int)a.l - (int)b.l)*VIA_COST;
+  return x_dis + y_dis + l_dis;
 }

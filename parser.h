@@ -14,14 +14,16 @@ using namespace std;
 class Parser
 {
 public:
+  unsigned char l, sl;
   void parse( std::string filename, Router& router);
+  void pinshapes_check( Router& router );
+  int manhattan_distance( Rectangle a, Rectangle b );
 private:
   std::ifstream input_file;
   std::stringstream ss;
-  std::map< std::string, std::pair<uint32_t, uint32_t> > layer_table;
-  std::vector <std::vector<uint32_t> > layer_width;
-  uint32_t convert( const std::string& str );
-  uint8_t l = 0, sl = 0;
+  std::map< std::string, std::pair<unsigned int, unsigned int> > layer_table;
+  std::vector <std::vector<unsigned int> > layer_width;
+  unsigned int convert( const std::string& str );
 };
 
 #endif

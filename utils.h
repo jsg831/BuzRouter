@@ -6,34 +6,37 @@
 struct Point
 {
 public:
-  uint32_t coor[2]; // (x: 0, y: 1)
+  unsigned int coor[2]; // (x: 0, y: 1)
 };
 
 struct Range
 {
 public:
-  uint32_t low = 0;
-  uint32_t upp = -1;
-  Range( void ) { }
-  Range( uint32_t low, uint32_t upp ) : low(low), upp(upp) { }
+  unsigned int low = 0;
+  unsigned int upp = -1;
+  Range( void ) {
+    low = 0;
+    upp = -1;
+  }
+  Range( unsigned int low, unsigned int upp ) : low(low), upp(upp) { }
   /** Functions **/
-  bool contains( uint32_t val ) const;
+  bool contains( unsigned int val ) const;
 };
 
 struct Node
 {
 public:
-  uint8_t l;
-  uint8_t sl;
-  uint32_t t;
-  uint32_t i;
+  unsigned char l;
+  unsigned char sl;
+  unsigned int t;
+  unsigned int i;
 };
 
 struct Rectangle
 {
 public:
-  uint8_t l;
-  uint8_t sl;
+  unsigned char l;
+  unsigned char sl;
   Point lower;
   Point upper;
 };
@@ -41,7 +44,7 @@ public:
 struct Track
 {
 public:
-  uint16_t width;
+  unsigned short width;
   Rectangle line;
 };
 

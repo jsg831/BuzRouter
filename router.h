@@ -22,12 +22,12 @@ public:
 class Router
 {
 public:
-  uint32_t runtime;
-  uint32_t alpha;
-  uint32_t beta;
-  uint32_t gamma;
-  uint32_t delta;
-  uint32_t epsilon;
+  unsigned int runtime;
+  unsigned int alpha;
+  unsigned int beta;
+  unsigned int gamma;
+  unsigned int delta;
+  unsigned int epsilon;
 
   std::ofstream output;
 
@@ -40,20 +40,23 @@ public:
   void initialize( std::string& filename );
   void route_all( void );
 private:
-  bool route( Bus& bus, uint32_t s, uint32_t t );
-  bool check_node( RoutingNode& rn, const uint8_t nbits, const uint16_t bw );
+  bool route( Bus& bus, unsigned int s, unsigned int t );
+  bool check_node( RoutingNode& rn, const unsigned char nbits, const uint16_t bw );
+  bool check_node_current_layer( RoutingNode& rn, const unsigned char nbits,
+    const uint16_t bw );
   void set_source( const RoutingNode& rn, bool bit );
   void set_target( const RoutingNode& rn, bool bit );
   bool backtrack( BusRoute& route, Node node, const Pinout& source,
-    const Pinout& target, const std::vector< std::vector<uint32_t> >& bw,
+    const Pinout& target, const std::vector< std::vector<unsigned int> >& bw,
     std::vector<Pinout> &steiner_tars);
   void output_route( const Bus& bus );
-  std::string coor_string( const uint32_t& x, const uint32_t& y );
+  std::string coor_string( const unsigned int& x, const unsigned int& y );
   void generate_path( BusRoute& route, const Pinout& source, const Pinout& target,
-     const std::vector< std::vector<uint32_t> >& bw );
-  void path2wire( Bus& bus, const std::vector< std::vector<uint32_t> >& bw );
-  bool route_pin2net( Bus& bus, uint32_t s);
+     const std::vector< std::vector<unsigned int> >& bw );
+  void path2wire( Bus& bus, const std::vector< std::vector<unsigned int> >& bw );
+  bool route_pin2net( Bus& bus, unsigned int s);
   void reduce_overlap_path( Bus &bus);
+  void set_psudo_blockage( const Bus& bus, bool bit );
 };
 
 #endif
