@@ -118,6 +118,7 @@ void Grid::make_grid( std::vector<Track>& tracks )
           grid_node.width_cur = 0;
           grid_node.width_low = 0;
           grid_node.flags = 0;
+          grid_node.psudo_block = 0;
         }
       }
     }
@@ -296,14 +297,11 @@ bool Grid::generate_pinout_nodes( Pinout& pinout, unsigned char l, unsigned char
       unsigned int pin_space = (tra_low_pre > tra_upp) ? tra_low_pre - tra_upp :
         tra_upp - tra_low_pre;
       if ( pin_space <= spacing && p != 0) {
-        std::cout <<"find spacing \n";
         // to prevent at least a track despite of spacing
         if ( t_node > t_min_limit ) {
           t_node--;
           continue;
         }
-        else
-          std::cout <<"last track\n";
       }
       if ( tra_upp < t_pin_low ) break;
       if ( (tra_upp <= t_pin_upp && tra_upp >= t_pin_low) || (tra_low <= t_pin_upp && tra_low >= t_pin_low) || (tra_upp >= t_pin_upp && tra_low <= t_pin_low) ) {

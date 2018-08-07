@@ -21,6 +21,7 @@ public:
   // Backtracking
   unsigned int from;
   unsigned char from_sl;
+  unsigned char psudo_block;
   Range range;
   enum FlagBit { obs, obs_low, obs_upp, src, tar_low, tar_upp, dir, dir_l, psu};
   /* Functions */

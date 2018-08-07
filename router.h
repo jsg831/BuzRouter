@@ -11,6 +11,7 @@
 #include "utils.h"
 
 #define VIA_COST UINT32_MAX
+#define PSU_COST VIA_COST/10
 
 struct RoutingOrder
 {
