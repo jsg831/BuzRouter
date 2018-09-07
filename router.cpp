@@ -29,6 +29,7 @@ void Router::initialize( std::string& filename )
       else bus.valid = 1;
     }
     set_psudo_blockage( bus , 1 );
+    std::cout << "after psudo\n";
   }
 }
 
@@ -45,9 +46,10 @@ void Router::route_all( void )
       grid.update_routable_range( bus.bus_widths );
       // for first 2 pin route
       if ( n == 0 ) {
+        std::cout << "\ninto route" << std::endl;
         success = route( bus, 0, 1 );
         n = 1;
-        if (success == 0) break;
+        if (success == 0 ) break;
         std::cout << "first 2pin route success" << std::endl;
         const Pinout& source = bus.pinouts[0];
         for ( unsigned int n = 0; n < source.nodes.size(); ++n ) {
@@ -154,7 +156,6 @@ bool Router::route( Bus& bus, unsigned int s, unsigned int t )
     Sublayer& sublayer = layer.sublayers[rn.node.sl];
     GridNode& grid_node = sublayer.grid_nodes[rn.node.t][rn.node.i];
     const unsigned int& bw = bus.bus_widths[rn.node.l][rn.node.sl];
-
     if ( rn.cost > grid_node.cost ) continue;
     // Check if the target is reached
     if ( rn.heading.pre ? grid_node.get_bit(GridNode::tar_low)
@@ -171,6 +172,7 @@ bool Router::route( Bus& bus, unsigned int s, unsigned int t )
       target_node = rn.node;
       break;
     }
+
     // Enqueue neighboring nodes
     RoutingNode rn_q = rn;
     // Current layer
@@ -178,13 +180,10 @@ bool Router::route( Bus& bus, unsigned int s, unsigned int t )
       rn_q.node.i = rn.node.i + 1;
       rn_q.cost += layer.lint_coor[rn_q.node.i] - layer.lint_coor[rn.node.i];
       // psudo blockage
-      GridNode& grid_node_front = sublayer.grid_nodes[rn.t_cur.front()][rn_q.node.i];
-      GridNode& grid_node_back = sublayer.grid_nodes[rn.t_cur.back()][rn_q.node.i];
-      if ( grid_node_front.psudo_block ) {
-        rn_q.cost += PSU_COST;
-      }
-      if ( grid_node_back.psudo_block ) {
-        rn_q.cost += PSU_COST;
+      for ( unsigned int t = 0; t < rn.t_cur.size(); t ++ ) {
+        GridNode& grid_node_psu = sublayer.grid_nodes[rn.t_cur[t]][rn_q.node.i];
+        if ( grid_node_psu.psudo_block )
+          rn_q.cost += PSU_COST;
       }
       if ( check_node(rn_q, nbits, bw) ) {
         GridNode& grid_node = sublayer.grid_nodes[rn_q.node.t][rn_q.node.i];
@@ -198,13 +197,10 @@ bool Router::route( Bus& bus, unsigned int s, unsigned int t )
       rn_q.node.i = rn.node.i - 1;
       rn_q.cost += layer.lint_coor[rn.node.i] - layer.lint_coor[rn_q.node.i];
       // psudo blockage
-      GridNode& grid_node_front = sublayer.grid_nodes[rn.t_cur.front()][rn_q.node.i];
-      GridNode& grid_node_back = sublayer.grid_nodes[rn.t_cur.back()][rn_q.node.i];
-      if ( grid_node_front.psudo_block ) {
-        rn_q.cost += PSU_COST;
-      }
-      if ( grid_node_back.psudo_block ) {
-        rn_q.cost += PSU_COST;
+      for ( unsigned int t = 0; t < rn.t_cur.size(); t ++ ) {
+        GridNode& grid_node_psu = sublayer.grid_nodes[rn.t_cur[t]][rn_q.node.i];
+        if ( grid_node_psu.psudo_block )
+          rn_q.cost += PSU_COST;
       }
       if ( check_node(rn_q, nbits, bw) ) {
         GridNode& grid_node = sublayer.grid_nodes[rn_q.node.t][rn_q.node.i];
@@ -219,13 +215,10 @@ bool Router::route( Bus& bus, unsigned int s, unsigned int t )
     rn_q.locked = 0;
     rn_q.cost = rn.cost + VIA_COST;
     // psudo blockage
-    GridNode& grid_node_front = sublayer.grid_nodes[rn.t_cur.front()][rn_q.node.i];
-    GridNode& grid_node_back = sublayer.grid_nodes[rn.t_cur.back()][rn_q.node.i];
-    if ( grid_node_front.psudo_block ) {
-      rn_q.cost += PSU_COST;
-    }
-    if ( grid_node_back.psudo_block ) {
-      rn_q.cost += PSU_COST;
+    for ( unsigned int t = 0; t < rn.t_cur.size(); t ++ ) {
+      GridNode& grid_node_psu = sublayer.grid_nodes[rn.t_cur[t]][rn_q.node.i];
+      if ( grid_node_psu.psudo_block )
+        rn_q.cost += PSU_COST;
     }
     rn_q.heading.pre = rn.heading.cur;
     rn_q.l_pre = rn.node.l;
@@ -293,6 +286,7 @@ bool Router::route( Bus& bus, unsigned int s, unsigned int t )
         rn_q.heading.cur = 1;
         rn_q.i_cur = sublayer.sltra_ulint[rn.t_cur.front()];
         rn_q.node.i = rn_q.i_cur;
+        RoutingNode rn_tmp = rn_q;
         if ( check_node(rn_q, nbits, bw_upp) ) {
           GridNode& grid_node = sublayer_cur.grid_nodes[rn_q.node.t][rn_q.node.i];
           grid_node.from = rn.node.t;
@@ -304,14 +298,13 @@ bool Router::route( Bus& bus, unsigned int s, unsigned int t )
     }
   }
   if ( success ) {
-
     bus.routes.resize(bus.routes.size() + 1);
     BusRoute& route = bus.routes.back();
     route.l_src = source.pin_shapes[0].l;
     route.sl_src = source.pin_shapes[0].sl;
     route.l_tar = target.pin_shapes[0].l;
     route.sl_tar = target.pin_shapes[0].sl;
-
+    std::cout << "find topology\n";
     success = backtrack(route, target_node, source, target,
       bus.bus_widths, bus.steiner_tars);
     //generate path and path to wire
@@ -334,7 +327,6 @@ bool Router::route_pin2net( Bus& bus, unsigned int s)
     pq.push( rn );
     set_source( rn, 1 );
   }
-
   /* Maze routing */
   while ( !pq.empty() ) {
     RoutingNode rn = pq.top();
@@ -343,7 +335,6 @@ bool Router::route_pin2net( Bus& bus, unsigned int s)
     Sublayer& sublayer = layer.sublayers[rn.node.sl];
     GridNode& grid_node = sublayer.grid_nodes[rn.node.t][rn.node.i];
     const unsigned int& bw = bus.bus_widths[rn.node.l][rn.node.sl];
-
     // Check if the target is reached
     if ( rn.heading.pre ? grid_node.get_bit(GridNode::tar_low)
       : grid_node.get_bit(GridNode::tar_upp) ) {
@@ -387,9 +378,10 @@ bool Router::route_pin2net( Bus& bus, unsigned int s)
       rn_q.node.i = rn.node.i + 1;
       rn_q.cost += layer.lint_coor[rn_q.node.i] - layer.lint_coor[rn.node.i];
       // psudo blockage
-      if ( grid_node.psudo_block ){
-        rn_q.cost += PSU_COST;
-        //std::cout << "PSUDO!!!! \n";
+      for ( unsigned int t = 0; t < rn.t_cur.size(); t ++ ) {
+        GridNode& grid_node_psu = sublayer.grid_nodes[rn.t_cur[t]][rn_q.node.i];
+        if ( grid_node_psu.psudo_block )
+          rn_q.cost += PSU_COST;
       }
       if ( check_node(rn_q, nbits, bw) ) {
         GridNode& grid_node = sublayer.grid_nodes[rn_q.node.t][rn_q.node.i];
@@ -403,9 +395,10 @@ bool Router::route_pin2net( Bus& bus, unsigned int s)
       rn_q.node.i = rn.node.i - 1;
       rn_q.cost += layer.lint_coor[rn.node.i] - layer.lint_coor[rn_q.node.i];
       // psudo blockage
-      if ( grid_node.psudo_block ){
-        rn_q.cost += PSU_COST;
-        //std::cout << "PSUDO!!!! \n";
+      for ( unsigned int t = 0; t < rn.t_cur.size(); t ++ ) {
+        GridNode& grid_node_psu = sublayer.grid_nodes[rn.t_cur[t]][rn_q.node.i];
+        if ( grid_node_psu.psudo_block )
+          rn_q.cost += PSU_COST;
       }
       if ( check_node(rn_q, nbits, bw) ) {
         GridNode& grid_node = sublayer.grid_nodes[rn_q.node.t][rn_q.node.i];
@@ -420,14 +413,10 @@ bool Router::route_pin2net( Bus& bus, unsigned int s)
     rn_q.locked = 0;
     rn_q.cost = rn.cost + VIA_COST;
     // psudo blockage
-    GridNode& grid_node_front = sublayer.grid_nodes[rn.t_cur.front()][rn_q.node.i];
-    GridNode& grid_node_back = sublayer.grid_nodes[rn.t_cur.back()][rn_q.node.i];
-    if ( grid_node_front.psudo_block ) {
-      rn_q.cost += PSU_COST;
-      //std::cout << "PSUDO!!!! \n";
-    }
-    if ( grid_node_back.psudo_block ) {
-      rn_q.cost += PSU_COST;
+    for ( unsigned int t = 0; t < rn.t_cur.size(); t ++ ) {
+      GridNode& grid_node_psu = sublayer.grid_nodes[rn.t_cur[t]][rn_q.node.i];
+      if ( grid_node_psu.psudo_block )
+        rn_q.cost += PSU_COST;
     }
     rn_q.heading.pre = rn.heading.cur;
     rn_q.l_pre = rn.node.l;
@@ -550,9 +539,10 @@ void Router::set_source( const RoutingNode& rn, bool bit )
 
 void Router::set_psudo_blockage( const Bus& bus, bool bit )
 {
-  for ( int p = 0; p < bus.pinouts.size(); p ++) {
+  for ( int p = 0; p < bus.pinouts.size(); p ++ ) {
     Pinout pinout = bus.pinouts[p];
-    for ( int r = 0; r < pinout.nodes.size(); r ++) {
+    for ( int r = 0; r < pinout.nodes.size(); r ++ ) {
+      bool check_head = 1;
       RoutingNode rn = pinout.nodes[r];
       Layer& layer = grid.layers[rn.node.l];
       Sublayer& sublayer = layer.sublayers[rn.node.sl];
@@ -561,55 +551,59 @@ void Router::set_psudo_blockage( const Bus& bus, bool bit )
       unsigned char extend_const = 25;
       unsigned int head = rn.t_cur.front();
       unsigned int tail = rn.t_cur.back();
-      if ( head > tail ) {
-        unsigned int tmp = head;
-        head = tail;
-        tail = tmp;
-      }
-      //std::cout << "head = " << head << "  tail = " << tail << std::endl;
-      for ( unsigned char c = 0; c < 3; c ++) {
-        if ( head <= 0 ) break;
-        head --;
-      }
-      for ( unsigned char c = 0; c < 3; c ++) {
-        if ( tail >= sublayer.sltra_axis.size() - 1 ) break;
-        tail ++;
-      }
-      //std::cout << "ext head = " << head << "  ext back = " << tail << std::endl;
+      if ( head > tail )
+        check_head = 0;
       bool stop_extend = 0;
       while ( true ) {
+
         if ( stop_extend && bit ) break;
         if ( abs (rn_q.node.i - rn.node.i ) > bus.bits.size() + extend_const*3 ) break;
-        if ( rn_q.node.i == layer.lint_coor.size() && rn.heading.cur) break;
-        if ( rn_q.node.i == -1 && !rn.heading.cur) break;
+        if ( rn_q.node.i == layer.lint_coor.size() && rn.heading.cur ) break;
+        if ( rn_q.node.i == -1 && !rn.heading.cur ) break;
         // set psu from pinout to head to tail
-        for ( unsigned int track = head; track <= tail; track ++ ) {
-          if ( grid_nodes[track][rn_q.node.i].get_bit( GridNode::obs ))
-            stop_extend = 1;
-          if ( stop_extend && bit ) break;
-          // current layer
-          if ( bit ) grid_nodes[track][rn_q.node.i].psudo_block ++;
-          if ( !bit && grid_nodes[track][rn_q.node.i].psudo_block > 0)
-            grid_nodes[track][rn_q.node.i].psudo_block --;
-          // Lower layer
-          if ( rn.node.l != 0 ) {
-            Layer& layer_cur = grid.layers[rn.node.l-1];
-            for ( unsigned char sl = 0; sl < layer_cur.sublayers.size(); ++sl ) {
-              Sublayer& sublayer_cur = layer_cur.sublayers[sl];
-              unsigned int t = sublayer_cur.ulint_sltra[rn_q.node.i];
-              if ( t == -1 ) continue;
-              unsigned int i = sublayer.sltra_llint[track];
+        for ( unsigned int t = 0; t < rn.t_cur.size(); t ++ ) {
+          unsigned int center_t_coor = sublayer.sltra_coor[rn.t_cur[t]];
+          unsigned short gridnode_width = grid_nodes[rn.t_cur[t]][rn_q.node.i].width_cur;
+          const bool dir = layer.direction; // (vertical: 0, horizontal: 1)
+          const unsigned int& spacing = sublayer.spacing;
+          const unsigned int coor_tra_low = grid.safe_sub( center_t_coor-gridnode_width/2, spacing );
+          const unsigned int coor_tra_upp = grid.safe_add( center_t_coor+gridnode_width/2, spacing );
+          unsigned int from_tra = grid.find_upper_bound( coor_tra_low, sublayer.sltra_coor );
+          unsigned int to_tra = grid.find_lower_bound( coor_tra_upp, sublayer.sltra_coor );
+          unsigned int from_tra_ov = grid.safe_sub( from_tra, OBS_EXT );
+          unsigned int to_tra_ov = grid.safe_add( to_tra, OBS_EXT,
+            sublayer.sltra_coor.size() - 1 );
+          if ( (!check_head && t == 0) || (check_head && t == rn.t_cur.size()-1) ) {  //check left
+            for ( unsigned int t_l = from_tra_ov; t_l < rn.t_cur[t]; ++t_l ) {
+              unsigned int track_l_coor = sublayer.sltra_coor[t_l];
+              unsigned short track_width_l = grid_nodes[t_l][rn_q.node.i].width_cur;
+              if ( track_l_coor+track_width_l > coor_tra_low ) {
+                if ( grid_nodes[t_l][rn_q.node.i].get_bit( GridNode::obs ))
+                  stop_extend = 1;
+                if ( stop_extend && bit ) break;
+                // current layer
+                if ( bit ) grid_nodes[t_l][rn_q.node.i].psudo_block ++;
+                if ( !bit && grid_nodes[t_l][rn_q.node.i].psudo_block > 0 )
+                  grid_nodes[t_l][rn_q.node.i].psudo_block --;
+              }
             }
           }
-          // upper layer
-          if ( rn.node.l != grid.layers.size()-1 ) {
-            Layer& layer_cur = grid.layers[rn.node.l+1];
-            for ( unsigned char sl = 0; sl < layer_cur.sublayers.size(); ++sl ) {
-              Sublayer& sublayer_cur = layer_cur.sublayers[sl];
-              unsigned int t = sublayer_cur.llint_sltra[rn_q.node.i];
-              if ( t == -1 ) continue;
-              unsigned int i = sublayer.sltra_ulint[track];
+          else {
+            //std::cout << "normal" << std::endl;
+            for ( unsigned int t_r = rn.t_cur[t]; t_r <= to_tra_ov; ++t_r ) {
+              unsigned int track_r_coor = sublayer.sltra_coor[t_r];
+              unsigned short track_width_r = grid_nodes[t_r][rn_q.node.i].width_cur;
+              if ( track_r_coor-track_width_r < coor_tra_upp ) {
+                if ( grid_nodes[t_r][rn_q.node.i].get_bit( GridNode::obs ))
+                  stop_extend = 1;
+                if ( stop_extend && bit ) break;
+                // current layer
+                if ( bit ) grid_nodes[t_r][rn_q.node.i].psudo_block ++;
+                if ( !bit && grid_nodes[t_r][rn_q.node.i].psudo_block > 0 )
+                  grid_nodes[t_r][rn_q.node.i].psudo_block --;
+              }
             }
+            //std::cout << "normal out" << std::endl;
           }
         }
         rn_q.node.i = (rn.heading.cur) ? rn_q.node.i + 1 : rn_q.node.i - 1;
@@ -617,9 +611,6 @@ void Router::set_psudo_blockage( const Bus& bus, bool bit )
     }
   }
 }
-
-
-
 
 void Router::set_target( const RoutingNode& rn, bool bit )
 {
@@ -712,6 +703,7 @@ bool Router::backtrack( BusRoute& route, Node node, const Pinout& source,
       grid.update_tracks(rn.node, nbits, bw[rn.node.l][rn.node.sl],
         nodes[n+1].i, rn.heading.pre, rn.t_cur );
     }
+
 
     //grid.generate_pinout_tar
     Pinout steiner_tar;
@@ -841,7 +833,7 @@ void Router::generate_path( BusRoute& route, const Pinout& source,
 void Router::path2wire( Bus& bus, const std::vector< std::vector<unsigned int> >& bw )
 {
   const unsigned int nbits = bus.bits.size();
-  for ( BusRoute& route : bus.routes) {
+  for ( BusRoute& route : bus.routes ) {
     for ( Path& path : route.paths ){
       const unsigned int half_width = bw[path.l][path.sl] >> 1;
       const Layer& layer = grid.layers[path.l];
@@ -849,7 +841,6 @@ void Router::path2wire( Bus& bus, const std::vector< std::vector<unsigned int> >
       const bool& dir = layer.direction;
       for ( unsigned int n = 0; n < nbits; ++n ) {
         Rectangle wire;
-        // std::cout << grid.layers.size()*3 + (unsigned int)path.l << " ";
         wire.l = path.l;
         wire.sl = path.sl;
         if ( layer.direction ) {
@@ -901,7 +892,6 @@ void Router::reduce_overlap_path( Bus &bus )
             ? overlap_path.i_coor[c].low : overlap_path.i_coor[c].upp;
           unsigned int& overlap_path_max = (overlap_path.i_coor[c].low > overlap_path.i_coor[c].upp)
             ? overlap_path.i_coor[c].low : overlap_path.i_coor[c].upp;
-
           if ( overlap_path_min > path_tail_min ){
             overlap_path_min = path_tail_min;
             std::cout << "overlap_low\n";

@@ -135,14 +135,21 @@ public:
   bool check_vias( RoutingNode& rn, bool via_type );
   Range routable_range( Node& n, const std::vector<unsigned int>& t,
     bool direction );
-private:
-  /* Functions */
-  /** Utilities **/
+
+
   // Overflow-aware addition and substraction for unsigned numbers
   uint32_t safe_add( const unsigned int& a, const unsigned int& b,
     const unsigned int& bound = UINT32_MAX );
   uint32_t safe_sub( const unsigned int& a, const unsigned int& b,
     const unsigned int& bound = 0 );
+    // Convenient index-searching functions
+    uint32_t find_lower_bound( const unsigned int& val,
+      const std::vector<unsigned int>& vec );
+    uint32_t find_upper_bound( const unsigned int& val,
+      const std::vector<unsigned int>& vec );
+  /* Functions */
+  /** Utilities **/
+private:
   // Remove duplicate values in a vector
   void remove_duplicates( std::vector<unsigned int>& vec );
   // Convenient index-converting functions
@@ -150,11 +157,7 @@ private:
     const std::vector<unsigned int>& vec, const std::vector<unsigned int>& sub_vec );
   void convert_subindex( std::vector<unsigned int>& conv_vec,
     const std::vector<unsigned int>& vec, const std::vector<unsigned int>& sub_vec );
-  // Convenient index-searching functions
-  uint32_t find_lower_bound( const unsigned int& val,
-    const std::vector<unsigned int>& vec );
-  uint32_t find_upper_bound( const unsigned int& val,
-    const std::vector<unsigned int>& vec );
+
   // Resize the widths of tracks inside (lower, upper) and set the widths
   // outside (lower, upper) to zero.
   void resize_width_in( const unsigned int& coor, unsigned short& width,

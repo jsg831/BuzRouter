@@ -178,7 +178,6 @@ void Grid::add_obstacles( const std::vector<Rectangle>& obstacles )
     unsigned int from_tra_ov = safe_sub( from_tra, OBS_EXT );
     unsigned int to_tra_ov = safe_add( to_tra, OBS_EXT,
       sublayer.sltra_coor.size() - 1 );
-
     do {
       for ( unsigned int t = from_tra_ov; t <= to_tra_ov; ++t ) {
         GridNode& grid_node = grid_nodes[t][from_int];
